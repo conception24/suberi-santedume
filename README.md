@@ -1,0 +1,96 @@
+# 🧊 すべり三手詰め
+
+**ニュートリーコのファンメイド、３手詰めチャレンジ。**
+リポジトリ名：`suberi-santedume`
+
+HTML / CSS / JavaScriptだけで動く静的ゲームです。`dist/` が編集対象のソース兼、そのまま配信できる完成ファイルです。ビルドやバックエンドは不要です。
+
+## 内容
+
+- 独自生成・独立検証済みの200問。あなた→相手→あなたの3手で3個を並べます。
+- デイリー：日本時間0時更新、その日・同じバージョンを開いた全員に同じ5問と応手。開始時の日付を保持するので、プレイ中の午前0時に問題が変わることはありません。失敗しても同じ問題をやり直せます。
+- ランダム：別の5連勝チャレンジ。石・猫・ランダム絵文字の3種類。
+- 各ラウンドは中央の「１戦目：スタート」などを押すまで待機。押してから出題配置への演出が始まり、完了後に計時します。演出中に遊び方を開いた場合は、安全にスタート待ちへ戻ります。
+- 時間は考えている間だけ。演出・問題間・ダイアログ表示中・タブ非表示中は停止。ヒントの使用回数も結果に反映します。
+- デイリー成績は**そのブラウザ内の `localStorage`** に保存。アカウント、サーバー、端末間同期、オンラインランキングはありません。ブラウザのデータを消すと成績も消えます。端末の日付を利用します。
+- Xは投稿画面を開く方式。自動投稿しません。過去の配置画像は結果画面から別途保存できます。
+
+## まずローカルで確認
+
+展開した `suberi-santedume` フォルダで実行します（Python 3）。
+
+```sh
+python -m http.server 8000 --directory dist
+```
+
+ブラウザで `http://localhost:8000/` を開きます。`file://` でHTMLを直接開くと問題データの読み込みが制限されるため、HTTPサーバーを使ってください。配信に `npm install` は不要です。
+
+## GitHubにアップロードする前に
+
+1. このZIPを展開し、**フォルダの中身をリポジトリのルートへ**置きます。
+2. 名前は `suberi-santedume`。公開／非公開はアップロード時に自分で選択してください。
+3. **このパッケージの準備では、リポジトリ作成・push・サイト公開を行っていません。** Git履歴、認証情報、以前のホスティング専用設定は含みません。
+4. 自動公開は無効です。GitHub Actionsのサンプルは `.yml.example` のままでは動きません。
+5. ライセンスは未決定のため、`LICENSE` は付けていません。公開前に、コード・素材の利用条件を決めてください。
+
+## 公開URLとX用画像
+
+実際のドメインは未確定なので、特定の公開先URLを埋め込んでいません。公開先が決まったらNode.js 22以上で実行します。**次のURLは説明用の例**です。自分の実際のURLへ変更してください。
+
+```sh
+# GitHub Pagesのプロジェクトサイトの例
+node scripts/configure-public-url.cjs https://YOUR-NAME.github.io/suberi-santedume/
+# Cloudflare Pagesや独自ドメインの例
+node scripts/configure-public-url.cjs https://YOUR-SITE.pages.dev/
+```
+
+このスクリプトは `dist/index.html` の `og:url` / `og:image` / `twitter:image` だけを設定します。ファイルのアップロードや公開は行いません。環境変数 `PUBLIC_SITE_URL` でも指定できます。
+
+ゲームのCSS・JavaScript・問題・画像は相対パスです。ルート配信と `/suberi-santedume/` 配下の両方に対応します。Xの投稿文に入るURLは、実際に開いているページのURLです。
+
+固定カード画像は `dist/assets/social-card.png`（1200×630、🍝対🐧）。OG設定は**リンクプレビュー用**で、画像ファイルをツイートへ自動添付する仕組みではありません。プレビューにはX側がアクセスできる公開ページ・画像が必要で、反映や表示は保証されません。非公開のままでは確認できません。
+
+## 公開する場合の選択肢
+
+### A. GitHub Pages
+
+1. GitHubへアップロードし、Settings → Pages → Source を **GitHub Actions** にします。
+2. `.github/workflows/deploy-pages.yml.example` を `deploy-pages.yml` に変更してコミットします。
+3. Actionsからこのワークフローの **Run workflow** を手動実行し、確認した完全な公開URLを入力します。
+4. `dist/` だけが配信されます。更新時も手動実行です。単なるpushでは公開を開始しません。
+
+リポジトリの公開設定とPagesのアクセス範囲は別途確認してください。利用条件はGitHubのプランにより異なります。[GitHub公式：カスタムワークフロー](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)
+
+### B. Cloudflare Pages（Git連携）
+
+GitHubリポジトリを接続し、フレームワークは **None**、ビルドコマンドは `exit 0`、出力ディレクトリは **`dist`** にします。公開URL設定済みのファイルをコミットしてから配信してください。Git連携を有効にすると、その後のpushでデプロイされる設定があるため確認してください。[Cloudflare公式：静的HTML](https://developers.cloudflare.com/pages/framework-guides/deploy-anything/)
+
+### C. Cloudflare Pages（手動アップロード）
+
+Direct Uploadで、`dist/` のフォルダをアップロードします。**リポジトリ全体のZIPではなく、`index.html` が配信ルートに来る `dist/` の内容**を使ってください。Direct UploadからGit連携への変更はできず、新しいプロジェクトが必要になるため、今後GitHubと連携するならBが適しています。[Cloudflare公式：Direct Upload](https://developers.cloudflare.com/pages/get-started/direct-upload/)
+
+## テスト・生成コード
+
+Node.js 22以上とPython 3。テストには外部依存のインストールは不要です。
+
+```sh
+npm run test:quick
+python verify.py
+# 盤面上のボタン配置をより広く検査する場合
+npm test
+```
+
+- `test-app.cjs`：各ラウンドのスタート待ち、説明中の時計停止、中央の切替確認、ヒント連打、非同期キャンセル、5連勝、デイリー、絵文字、共有などの状態テスト。
+- `verify.py`：200問の合法性・唯一の初手・相手全応手・到達経路を独立検証。
+- `scripts/test-public-url.cjs`：サブパス／ルート配信、OG URL、無効入力、繰り返し設定を検査。
+- テストはDOMの代替環境です。実ブラウザの見た目・音・Xリンクプレビューは公開先で別途確認してください。
+- `generate.py`：問題集を再生成します。**既存の `dist/puzzles.json` を上書きします。** 問題を変える場合は `dist/app.js` の `BANK_VERSION` も変更し、全員に同じ版を配信してください。現行の到達経路データは盤面イントロに必要なので削除しないでください。
+- `scripts/create-social-card.cjs`：固定画像を再生成する任意の開発ツール。生成済みPNGは同梱済みです。再生成する場合のみ `npm install` と日本語フォントが必要です。`SOCIAL_FONT_BOLD` / `SOCIAL_FONT_REGULAR` にフォントファイルのパスを指定できます（既定はLinuxのNoto Sans CJK）。フォントは同梱していません。環境により絵文字の描画は変わります。
+
+## クレジット・権利
+
+ニュートリーコ（Neutreeko）の考案者は **Jan Kristian Haugland** です。[公式サイト](https://www.neutreeko.net/index.htm)
+
+本作は独自の問題・画面・コードによる**非公式ファンメイド**で、公式作品でも、考案者の承認や許諾を受けたことを示すものでもありません。原作の権利と、このパッケージのコード・素材の利用条件は別です。公開・再配布に必要な権利確認は別途行ってください。
+
+元ソースのコミットは `SOURCE_VERSION.txt` に記録しています。このZIPには元のGit履歴は含めていません。

@@ -1,0 +1,38 @@
+# INACTIVE EXAMPLE. Rename to deploy-pages.yml only when you choose to enable Pages.
+# Manual trigger only: uploading or pushing the repository does not trigger this workflow.
+name: Publish suberi-santedume to GitHub Pages (manual)
+on:
+  workflow_dispatch:
+    inputs:
+      public_url:
+        description: '公開先の完全なHTTPS URL（末尾 /。GitHubの所有者名や独自ドメインを確認して入力）'
+        required: true
+        type: string
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/configure-pages@v5
+      - name: Set public social URL
+        env:
+          PUBLIC_SITE_URL: ${{ inputs.public_url }}
+        run: node scripts/configure-public-url.cjs
+      - name: Validate static files
+        run: node qa.cjs && node scripts/test-public-url.cjs
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+      - name: Publish (only after manual Run workflow)
+        id: deployment
+        uses: actions/deploy-pages@v4

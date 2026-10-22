@@ -1,0 +1,3 @@
+Source commit: 1304872795a07cd7db461f9cdf48d33e99724b8e
+Exported: 2026-10-22
+Portable export: deployment-specific metadata removed; public URL configuration and inactive deployment example added.
