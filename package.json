@@ -4,10 +4,13 @@
   "private": true,
   "description": "すべり三手詰め — ニュートリーコの非公式ファンメイドパズル",
   "scripts": {
-    "test": "node qa.cjs && node scripts/test-public-url.cjs && node test-app.cjs",
+    "test": "node qa.cjs && node scripts/test-public-url.cjs && node test-app.cjs && node scripts/sync-root.cjs --check",
     "test:quick": "node scripts/test-quick.cjs",
     "configure:url": "node scripts/configure-public-url.cjs",
-    "cover": "node scripts/create-social-card.cjs"
+    "cover": "node scripts/create-social-card.cjs",
+    "sync:root": "node scripts/sync-root.cjs"
   },
-  "devDependencies": { "@napi-rs/canvas": "0.1.100" }
+  "devDependencies": {
+    "@napi-rs/canvas": "0.1.100"
+  }
 }

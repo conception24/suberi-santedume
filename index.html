@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#982bfa">
+  <meta name="description" content="スライドして、3手でそろえる。Neutreeko の非公式ファンメイド・パズル。めざせ5連勝！">
+  <title>すべり三手詰め — めざせ5連勝</title>
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="すべり三手詰め — めざせ5連勝">
+  <meta property="og:description" content="🍝 VS 🐧 スライドして3つそろえる、3手チャレンジ。">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="パスタ対ペンギンの5×5盤面、すべり三手詰め">
+  <meta name="twitter:card" content="summary_large_image">
+  <!-- PUBLIC_URL_METADATA_START -->
+  <meta property="og:url" content="https://suberi-santedume.pages.dev/">
+  <meta property="og:image" content="https://suberi-santedume.pages.dev/assets/social-card.png">
+  <meta name="twitter:image" content="https://suberi-santedume.pages.dev/assets/social-card.png">
+  <!-- PUBLIC_URL_METADATA_END -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body><main>
+  <header>
+    <a class="brand" href="./" aria-label="すべり三手詰め ホーム"><span class="logo" aria-hidden="true">🧊</span><span><b class="brandtitle">すべり<span>三手詰め</span></b></span></a>
+    <button id="sound" class="icon" aria-label="効果音をオフにする" aria-pressed="true">♪ <span>ON</span></button>
+  </header>
+  <p class="subtitle"><a id="subtitleOfficial" href="https://www.neutreeko.net/index.htm">ニュートリーコ</a>のファンメイド、３手詰めチャレンジ</p>
+  <div class="top-tools"><button id="helpButton" class="help-button" aria-haspopup="dialog">遊び方</button><button id="dailyRecordsButton" class="daily-records-button" aria-label="デイリーの成績">成績</button>      <div class="skins" role="group" aria-label="駒の見た目">
+        <button id="plain" aria-pressed="true">石</button><button id="cats" aria-pressed="false">猫</button><button id="emojis" aria-pressed="false">絵文字</button>
+      </div></div>
+  <section class="game" aria-label="3手詰めパズル">
+    <div class="scorebar">
+      <div class="mode-switch" role="group" aria-label="問題のモード"><button id="dailyMode" aria-pressed="true">デイリー</button><button id="randomMode" aria-pressed="false">ランダム</button></div>
+      <strong id="timer" aria-label="思考時間">00:00.0</strong>
+    </div>
+    <div class="round-slots" role="group" aria-label="5連勝の進み具合"><div id="slot0" class="round-slot">1</div><div id="slot1" class="round-slot">2</div><div id="slot2" class="round-slot">3</div><div id="slot3" class="round-slot">4</div><div id="slot4" class="round-slot">5</div></div>
+    <div class="puzzleline">
+      <span id="number">読み込み中</span>
+
+    </div>
+    <div id="matchup" class="matchup"><span class="matchup-side">あなた <b id="matchupOwn"></b></span><span class="versus">VS</span><span class="matchup-side"><b id="matchupOther"></b> 相手</span></div>
+    <div class="boardwrap"><div id="confetti" class="confetti" aria-hidden="true"></div>
+      <div id="board" class="board" aria-label="5×5の盤面">
+        <div id="boardTools" class="board-tools" aria-label="問題の操作" hidden>
+          <button id="retry" title="やり直す" aria-label="やり直す" hidden><span aria-hidden="true">↻</span><small>やり直す</small></button>
+          <button id="next" title="次の問題" aria-label="次の問題" hidden><small>次へ</small><span aria-hidden="true">→</span></button>
+        </div>
+      </div>
+      <button id="startRound" class="round-start" hidden>１戦目：スタート</button>
+      <div id="finishShare" class="finish-share" hidden><button id="finishShareButton"><span aria-hidden="true">𝕏</span> <span id="finishShareLabel">5連勝をシェア ↗</span></button><button id="historyButton" class="history-link" hidden>５試合の配置を見る・保存</button></div>
+      <svg id="winLine" viewBox="0 0 500 500" aria-hidden="true"></svg>
+    </div>
+    <div id="toolsDock" class="tools-dock" hidden></div>
+    <div class="introbar">
+      <span id="introControls" hidden><button id="skipIntro">演出をスキップ ↗</button></span>
+    </div>
+    <div class="turns" aria-label="手順"><span id="step0" class="active">1 あなた</span><i>→</i><span id="step1">2 相手</span><i>→</i><span id="step2">3 あなた</span></div>
+    <div id="status" class="status" role="status" aria-live="polite" hidden></div>
+    <div class="actions">
+      <button id="hint" class="secondary">ヒント <span>初手を教えて</span></button>
+      <button id="newChallenge" class="primary" hidden>もう一度５連勝チャレンジをする</button>
+    </div>
+
+  </section>
+  <dialog id="helpDialog" aria-labelledby="helpTitle">
+    <div class="help-heading"><h2 id="helpTitle">遊び方</h2><button id="closeHelp" aria-label="遊び方を閉じる" autofocus>閉じる</button></div>
+    <p class="help-goal">あなた→相手→あなた。<br>３手でそろえて勝とう！</p>
+    <div class="help-images">
+      <figure><img src="assets/rule-slide.svg" width="480" height="240" alt="駒は縦・横・斜めへ、別の駒の直前または盤の端まで滑る。途中のマスでは止まれない。"><figcaption>たてよこななめにぶつかるまで止まらない。</figcaption></figure>
+      <figure><img src="assets/rule-win.svg" width="480" height="190" alt="同じ色の駒3個が隙間なく縦、横、斜めに並ぶと勝ち。"><figcaption>3つ並べば、勝ち！</figcaption></figure>
+    </div>
+  </dialog>
+  <footer>
+    <p class="attribution"><a id="officialLink" href="https://www.neutreeko.net/index.htm">ニュートリーコ</a>の非公式ファンメイド</p>
+    <p>原作：Jan Kristian Haugland</p>
+    <p class="note">原作者とは無関係です。問題・イラストは独自制作。</p>
+  </footer>
+  <dialog id="historyDialog" aria-labelledby="historyTitle">
+    <div class="history-heading"><h2 id="historyTitle">このチャレンジの配置</h2><button id="closeHistory" aria-label="閉じる">閉じる</button></div>
+    <div id="historyBoards" class="history-boards"></div>
+    <button id="saveAllBoards">まとめて画像を保存</button>
+    <p id="historyStatus" class="history-status" role="status"></p>
+  </dialog>
+  <dialog id="dailyRecordsDialog" aria-labelledby="dailyRecordsTitle">
+    <div class="history-heading"><h2 id="dailyRecordsTitle">デイリーの成績</h2><button id="closeDailyRecords">閉じる</button></div>
+    <p class="local-note">この端末・ブラウザに保存されます。全国ランキングではありません。</p>
+    <div id="dailyRecordsList"></div>
+  </dialog>
+  <dialog id="modeDialog" aria-labelledby="modeTitle" aria-describedby="modeDescription">
+    <h2 id="modeTitle">モードを切り替えますか？</h2>
+    <p id="modeDescription">途中の挑戦を終了して、新しい5問を始めます。</p>
+    <div><button id="cancelMode" autofocus>キャンセル</button><button id="confirmMode">切り替える</button></div>
+  </dialog>
+  <dialog id="externalDialog" aria-labelledby="externalTitle">
+    <h2 id="externalTitle">本家サイトを開きますか？</h2>
+    <p>Neutreeko 公式サイト（英語）を別タブで開きます。このゲームはそのまま残ります。</p>
+    <div><button id="stayHere">ここに残る</button><button id="visitOfficial">本家を開く ↗</button></div>
+  </dialog>
+</main><script src="app.js"></script></body></html>

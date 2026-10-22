@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="190" viewBox="0 0 480 190">
+ <title>隙間なく縦、横、斜めに3つ</title><defs><pattern id="grid" width="38" height="38" patternUnits="userSpaceOnUse"><rect width="38" height="38" fill="#fff9ee"/><path d="M38 0H0V38" fill="none" stroke="#d8c5d4" stroke-width="1.5"/></pattern><circle id="stone" r="13" fill="#8060f2" stroke="#382454" stroke-width="2"/></defs>
+ <g transform="translate(183 24)"><rect width="114" height="114" rx="8" fill="url(#grid)"/><use href="#stone" x="19" y="57"/><use href="#stone" x="57" y="57"/><use href="#stone" x="95" y="57"/><path d="M19 57H95" stroke="#19d7a0" stroke-width="4" stroke-linecap="round"/></g>
+ <g transform="translate(23 24)"><rect width="114" height="114" rx="8" fill="url(#grid)"/><use href="#stone" x="57" y="19"/><use href="#stone" x="57" y="57"/><use href="#stone" x="57" y="95"/><path d="M57 19V95" stroke="#19d7a0" stroke-width="4" stroke-linecap="round"/></g>
+ <g transform="translate(343 24)"><rect width="114" height="114" rx="8" fill="url(#grid)"/><use href="#stone" x="19" y="95"/><use href="#stone" x="57" y="57"/><use href="#stone" x="95" y="19"/><path d="M19 95 95 19" stroke="#19d7a0" stroke-width="4" stroke-linecap="round"/></g>
+ <g font-family="sans-serif" font-size="26" font-weight="700" text-anchor="middle" fill="#382454"><text x="80" y="171">たて</text><text x="240" y="171">よこ</text><text x="400" y="171">ななめ</text></g>
+</svg>
