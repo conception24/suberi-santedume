@@ -178,7 +178,7 @@ function newChallenge(){
   challengeDate=mode==='daily'?jstDate():'';dailyRunId=Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);order=mode==='daily'?dailyOrder(challengeDate):shuffle([...puzzles.keys()]);index=0;if(puzzles.length)loadPuzzle()
 }
 // Only immutable puzzle-start positions are exported; no solutions or move markers.
-function shareText(){const date=challengeDate.split('-');return `すべり三手詰め${mode==='daily'?`デイリー問題（${Number(date[1])}月${Number(date[2])}日）`:''}\n5連勝（${(challengeTime()/1000).toFixed(1)}秒）ヒント${hintUses}回使用\n#ニュートリーコファンメイド`}
+function shareText(){const date=challengeDate.split('-');return `#すべり三手詰め${mode==='daily'?` デイリー問題（${Number(date[1])}月${Number(date[2])}日）`:' ランダム問題'}\n5連勝（${(challengeTime()/1000).toFixed(1)}秒）ヒント${hintUses}回使用\n#ニュートリーコファンメイド`}
 function drawStartBoard(ctx,snapshot,x,y,size){
   const cell=size/5;ctx.save();ctx.translate(x,y);
   for(let n=0;n<25;n++){ctx.fillStyle=n%2?'#fce6f2':'#fff9ee';ctx.fillRect(n%5*cell,Math.floor(n/5)*cell,cell,cell)}
