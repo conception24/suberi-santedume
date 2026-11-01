@@ -157,3 +157,28 @@ footer{font-size:12px}.attribution{font-size:13px}.note{font-size:12px!important
 .favorite-practice-banner strong{min-width:0;line-height:1.5}
 @media(max-width:600px){.favorite-practice .game{grid-template-areas:'practice practice' 'score score' 'number number' 'matchup matchup' 'board board' 'tools tools' 'intro intro' 'turns actions' 'status status'}}
 @media(max-width:400px){.snapshot-matchup .matchup-side{font-size:11px}.snapshot-matchup .matchup-side .matchup-icon.emoji{font-size:18px}.favorite-practice-banner{padding:7px;gap:8px}.favorite-practice-banner strong{font-size:12px}.favorite-practice-banner button{font-size:12px;padding:8px}}
+/* Favorite navigation and display choices stay inside one review session. */
+.favorites-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+#favoritesTop{flex:none;padding:7px 12px;background:#fff9ee}
+#favoritesDialog .favorites-heading{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:14px}
+#favoritesDialog .favorites-heading h2{font-size:17px;margin:0;white-space:nowrap}
+#favoritesLegend{flex:1;min-width:120px}
+#favoritesLegend .snapshot-matchup{border:0;background:transparent;box-shadow:none;padding:0;display:flex;justify-content:center;gap:12px}
+#favoritesLegend .matchup-side{flex-direction:row;align-items:center;gap:4px;font-size:12px}
+#favoritesLegend .matchup-icon{width:21px;height:21px}
+#favoritesLegend .matchup-icon.emoji{font-size:21px}
+#favoritesNoticeToggle{flex:none;min-width:34px;min-height:34px;padding:4px;font-size:23px;background:#eee5ff;line-height:1}
+#favoritesNotice{margin:0 0 14px;padding:12px;border:2px solid var(--ink);border-radius:10px;background:#fff5ce}
+.favorites-skins{width:max-content}
+#favoritesDialog .favorites-skins button{flex:none;white-space:nowrap;padding:6px 11px}
+.favorite-practice .scorebar{justify-content:space-between;min-width:0;gap:12px}
+#favoriteProblemName{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px;letter-spacing:0;color:var(--ink)}
+#timer{flex:none}
+.favorite-finish-overlay,.top-resume{position:absolute;z-index:8;left:50%;top:50%;transform:translate(-50%,-50%);width:78%;display:grid;gap:10px;padding:14px;border:3px solid var(--ink);border-radius:16px;background:#fffaf3;box-shadow:4px 5px 0 var(--ink)}
+.favorite-finish-overlay button,.top-resume button{min-height:48px;border:2px solid var(--ink);border-radius:10px;padding:10px;font-size:16px;font-weight:850;background:#ffe62d;color:var(--ink)}
+.favorite-finish-overlay button:first-child{background:#eee5ff}
+.favorite-finish-overlay button:last-child{background:#58f0bd}
+@media(max-width:600px){#favoriteProblemName{font-size:14px;color:#fffaf3;text-shadow:1px 1px 0 var(--ink)}.favorite-practice .game{grid-template-areas:'practice practice' 'score score' 'matchup matchup' 'board board' 'tools tools' 'intro intro' 'turns actions' 'status status'}}
+@media(max-width:420px){#favoritesDialog{padding:14px}#favoritesDialog .favorites-heading h2{flex:1 1 100%}#favoritesLegend{justify-content:flex-start}#favoritesLegend .snapshot-matchup{justify-content:flex-start}#favoritesDialog .favorites-heading{gap:8px}.favorite-finish-overlay{padding:10px;gap:8px}.favorite-finish-overlay button{font-size:14px;min-height:44px}.favorites-toolbar{margin-bottom:12px}}
+.history-card strong{max-width:100%;overflow-wrap:anywhere}
+.top-view #winLine{visibility:hidden}

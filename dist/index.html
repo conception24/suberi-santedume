@@ -30,8 +30,8 @@
         <button id="plain" aria-pressed="true">石</button><button id="cats" aria-pressed="false">猫</button><button id="emojis" aria-pressed="false">絵文字</button>
       </div></div>
   <section class="game" aria-label="3手詰めパズル">
-    <div id="favoritePracticeBanner" class="favorite-practice-banner" hidden><strong id="favoritePracticeLabel">お気に入りの練習</strong><button id="leaveFavoriteReplay">一覧に戻る</button></div>
-    <div class="scorebar">
+    <div id="favoritePracticeBanner" class="favorite-practice-banner" hidden><strong>お気に入りの振り返り</strong><button id="leaveFavoriteReplay">一覧に戻る</button></div>
+    <div class="scorebar"><strong id="favoriteProblemName" hidden></strong>
       <div class="mode-switch" role="group" aria-label="問題のモード"><button id="dailyMode" aria-pressed="true">デイリー</button><button id="randomMode" aria-pressed="false">ランダム</button></div>
       <strong id="timer" aria-label="思考時間">00:00.0</strong>
     </div>
@@ -48,6 +48,7 @@
           <button id="next" title="次の問題" aria-label="次の問題" hidden><small>次へ</small><span aria-hidden="true">→</span></button>
         </div>
       </div>
+      <div id="topResume" class="top-resume" hidden><button id="resumeFromTop">続きを遊ぶ</button></div><div id="favoriteFinishOverlay" class="favorite-finish-overlay" hidden><button id="favoriteAgain">やり直す</button><button id="favoriteNext">次の問題へ</button><button id="favoriteList">一覧に戻る</button></div>
       <button id="startRound" class="round-start" hidden>１戦目：スタート</button>
       <div id="finishShare" class="finish-share" hidden><button id="finishShareButton"><span aria-hidden="true">𝕏</span> <span id="finishShareLabel">5連勝をシェア ↗</span></button><button id="historyButton" class="history-link" hidden>５試合の配置を見る・保存 / お気に入り</button></div>
       <svg id="winLine" viewBox="0 0 500 500" aria-hidden="true"></svg>
@@ -84,8 +85,8 @@
     <p id="historyStatus" class="history-status" role="status"></p>
   </dialog>
   <dialog id="favoritesDialog" aria-labelledby="favoritesTitle">
-    <div class="history-heading"><h2 id="favoritesTitle">お気に入り</h2><button id="closeFavorites">閉じる</button></div>
-    <p>この端末・このブラウザー内に保存されます（アカウントには紐づきません）。閲覧データの削除やプライベート閲覧の終了などで消えることがあります。別端末・別ブラウザーには同期されません。再プレイは通常の成績に含まれません。</p>
+    <div class="favorites-toolbar"><button id="favoritesTop">TOP</button><div class="skins favorites-skins" role="group" aria-label="お気に入りの駒の見た目"><button id="favoritesPlain" aria-pressed="true">石</button><button id="favoritesCats" aria-pressed="false">猫</button><button id="favoritesEmojis" aria-pressed="false">絵文字</button></div></div><div class="favorites-heading"><h2 id="favoritesTitle">お気に入り（0問）</h2><div id="favoritesLegend"></div><button id="favoritesNoticeToggle" aria-label="保存についての注意書き" aria-controls="favoritesNotice" aria-expanded="false">ⓘ</button><button id="closeFavorites">閉じる</button></div>
+    <p id="favoritesNotice" hidden>この端末・このブラウザー内に保存されます（アカウントには紐づきません）。閲覧データの削除やプライベート閲覧の終了などで消えることがあります。別端末・別ブラウザーには同期されません。再プレイは通常の成績に含まれません。</p>
     <div id="favoritesList" class="favorite-list"></div><p id="favoritesStatus" role="status"></p>
   </dialog>
   <dialog id="dailyRecordsDialog" aria-labelledby="dailyRecordsTitle">
