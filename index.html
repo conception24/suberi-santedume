@@ -30,6 +30,7 @@
         <button id="plain" aria-pressed="true">石</button><button id="cats" aria-pressed="false">猫</button><button id="emojis" aria-pressed="false">絵文字</button>
       </div></div>
   <section class="game" aria-label="3手詰めパズル">
+    <div id="favoritePracticeBanner" class="favorite-practice-banner" hidden><strong id="favoritePracticeLabel">お気に入りの練習</strong><button id="leaveFavoriteReplay">一覧に戻る</button></div>
     <div class="scorebar">
       <div class="mode-switch" role="group" aria-label="問題のモード"><button id="dailyMode" aria-pressed="true">デイリー</button><button id="randomMode" aria-pressed="false">ランダム</button></div>
       <strong id="timer" aria-label="思考時間">00:00.0</strong>
@@ -77,7 +78,7 @@
     <p class="note">原作者とは無関係です。問題・イラストは独自制作。</p>
   </footer>
   <dialog id="historyDialog" aria-labelledby="historyTitle">
-    <div class="history-heading"><h2 id="historyTitle">このチャレンジの配置</h2><button id="closeHistory" aria-label="閉じる">閉じる</button></div>
+    <div class="history-heading"><h2 id="historyTitle">このチャレンジの配置</h2><div class="skins history-skins" role="group" aria-label="配置の駒の見た目"><button id="historyPlain" aria-pressed="true">石</button><button id="historyCats" aria-pressed="false">猫</button><button id="historyEmojis" aria-pressed="false">絵文字</button></div><button id="closeHistory" aria-label="閉じる">閉じる</button></div>
     <div id="historyBoards" class="history-boards"></div>
     <button id="saveAllBoards">まとめて画像を保存</button>
     <p id="historyStatus" class="history-status" role="status"></p>
@@ -86,12 +87,6 @@
     <div class="history-heading"><h2 id="favoritesTitle">お気に入り</h2><button id="closeFavorites">閉じる</button></div>
     <p>この端末・このブラウザー内に保存されます（アカウントには紐づきません）。閲覧データの削除やプライベート閲覧の終了などで消えることがあります。別端末・別ブラウザーには同期されません。再プレイは通常の成績に含まれません。</p>
     <div id="favoritesList" class="favorite-list"></div><p id="favoritesStatus" role="status"></p>
-  </dialog>
-  <dialog id="favoriteReplayDialog" aria-labelledby="favoriteReplayTitle">
-    <div class="history-heading"><h2 id="favoriteReplayTitle">お気に入りの問題</h2><button id="closeFavoriteReplay">閉じる</button></div>
-    <p>お気に入りの練習 · 紫の石を3手でそろえよう</p>
-    <div id="favoriteReplayBoard" class="favorite-replay-board" aria-label="お気に入りの練習盤面"></div>
-    <p id="favoriteReplayStatus" role="status"></p><button id="favoriteReplayReset">もう一度挑戦する</button>
   </dialog>
   <dialog id="dailyRecordsDialog" aria-labelledby="dailyRecordsTitle">
     <div class="history-heading"><h2 id="dailyRecordsTitle">デイリーの成績</h2><button id="closeDailyRecords">閉じる</button></div>

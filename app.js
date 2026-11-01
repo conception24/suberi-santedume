@@ -19,7 +19,7 @@ function resultLabel(){return '5連勝'}
 function snapshotLabel(p){return p.mode==='daily'?`${p.date} · 問${p.round}`:`No. ${String(p.id).padStart(3,'0')}`}
 function readDailyRecords(){const data=read(DAILY_STORAGE,{});return data&&typeof data==='object'&&!Array.isArray(data)?data:{}}
 function saveDailyResult(){
-  if(mode!=='daily'||!challengeDate||!dailyRunId||!puzzle)return;
+  if(favoriteSession||mode!=='daily'||!challengeDate||!dailyRunId||!puzzle)return;
   const records=readDailyRecords(),day=records[challengeDate]||{bank:BANK_VERSION,runs:[]};if(!Array.isArray(day.runs))day.runs=[];
   const item={id:dailyRunId,completed:challengeDone,cleared:streak,ms:Math.round(challengeTime()),hints:hintUses,mistakes,updatedAt:Date.now()},at=day.runs.findIndex(r=>r.id===dailyRunId);if(at<0)day.runs.push(item);else day.runs[at]=item;day.runs=day.runs.slice(-20);records[challengeDate]=day;save(DAILY_STORAGE,records)
 }
@@ -33,6 +33,7 @@ function modeCaption(){if(mode==='random')return 'ランダム · 5連勝チャ�
 function updateModeLabels(){const date=challengeDate||jstDate();$('dailyMode').textContent=`デイリー ${Number(date.slice(5,7))}/${Number(date.slice(8,10))}`;$('dailyMode').title=modeCaption();$('dailyMode').setAttribute('aria-label',`デイリー ${date}。毎日0時更新、日本時間`)}
 function applyMode(next){stopThinking();saveDailyResult();mode=next;save('suberi-mode',mode);newChallenge()}
 function switchMode(next){
+  if(favoriteSession)return;
   if(!['daily','random'].includes(next)||next===mode&&(mode!=='daily'||challengeDate===jstDate()))return;
   if(puzzle&&!challengeDone&&(roundState!=='WAIT_START'||challengeTime()>0||streak>0||hintUses>0)){pendingMode=next;showPanel('modeDialog','cancelMode',$(next==='daily'?'dailyMode':'randomMode'));return}
   applyMode(next)
@@ -72,11 +73,11 @@ function render(){for(let i=0;i<6;i++){const pos=i<3?own[i]:other[i-3],b=stones[
 $('historyButton').hidden=!challengeDone;$('status').hidden=challengeDone||!$('status').textContent;
 for(let i=0;i<5;i++){const slot=$('slot'+i),done=winSlots[i],active=i===streak&&!challengeDone;const hinted=done?done.hints>0:active&&currentHintUses>0;slot.classList.toggle('cleared',!!done);slot.classList.toggle('current',active);slot.classList.toggle('hinted',hinted);const label=hinted?(done?'<span class="slot-check">✓</span>':'')+'<span class="slot-hint">HINT</span>':done?'✓':String(i+1);if(slot.innerHTML!==label)slot.innerHTML=label;slot.setAttribute('aria-label',`${i+1}問目 ${done?'クリア':active?'挑戦中':'未挑戦'}${hinted?'・ヒント使用':''}`)}
 $('newChallenge').hidden=!challengeDone;$('hint').hidden=challengeDone;$('hint').disabled=roundState!=='READY'||busy||challengeDone||(finished&&attemptCounted)||hintUsedThisAttempt;$('startRound').hidden=roundState!=='WAIT_START'||!puzzle||challengeDone;$('startRound').textContent=String(Math.min(5,streak+1)).replace(/[0-9]/g,d=>String.fromCharCode(d.charCodeAt(0)+65248))+'戦目：スタート';board.classList.toggle('waiting-start',roundState==='WAIT_START');
-$('retry').hidden=selected!==null||!canRetry();$('next').hidden=busy||challengeDone||selected!==null||!finished||(mode==='daily'&&!attemptCounted);$('boardTools').hidden=$('retry').hidden&&$('next').hidden;
+$('retry').hidden=selected!==null||!canRetry();$('next').hidden=!!favoriteSession||busy||challengeDone||selected!==null||!finished||(mode==='daily'&&!attemptCounted);$('boardTools').hidden=$('retry').hidden&&$('next').hidden;
 $('finishShare').hidden=!challengeDone;$('finishShareLabel').textContent=resultLabel()+'をシェア ↗';$('newChallenge').textContent=mode==='daily'?'もう一度デイリーに挑戦する':'もう一度５連勝チャレンジをする';placeBoardTools();syncThinking();$('timer').textContent=timeString(challengeTime())}
 function status(s,cls=''){$('status').textContent=s;$('status').className='status '+cls;$('status').hidden=!s||challengeDone}
 function stopThinking(){if(thinkingSince!==null){thinkingTotal+=Math.max(0,performance.now()-thinkingSince);thinkingSince=null}}
-function anyPanelOpen(){return ['helpDialog','historyDialog','dailyRecordsDialog','externalDialog','modeDialog','favoritesDialog','favoriteReplayDialog'].some(id=>$(id).open)}
+function anyPanelOpen(){return ['helpDialog','historyDialog','dailyRecordsDialog','externalDialog','modeDialog','favoritesDialog'].some(id=>$(id).open)}
 function syncThinking(){const ready=!!puzzle&&roundState==='READY'&&!intro&&!busy&&!finished&&!challengeDone&&!anyPanelOpen()&&!document.hidden;if(ready){if(thinkingSince===null)thinkingSince=performance.now()}else stopThinking()}
 function challengeTime(){return challengeDone?challengeElapsed:thinkingTotal+(thinkingSince===null?0:Math.max(0,performance.now()-thinkingSince))}
 function startTimer(){syncThinking()}
@@ -108,11 +109,12 @@ setInterval(()=>{$('timer').textContent=timeString(challengeTime());updateModeLa
 function select(p){if(roundState!=='READY'||anyPanelOpen()||busy||finished||!own.includes(p))return;unlock();startTimer();firstSelected=true;selected=selected===p?null:p;beep('tap');render()}
 function finish(ok,reason=''){
   stopThinking();finished=true;selected=null;
-  if(!attemptCounted){total++;if(ok){correct++;streak++;attemptCounted=true;winSlots.push({hints:currentHintUses,id:puzzle.id});best=Math.max(best,streak);save('suberi-best',best)}else{mistakes++;if(mode!=='daily'){streak=0;winSlots=[]}}}
+  if(!favoriteSession&&!attemptCounted){total++;if(ok){correct++;streak++;attemptCounted=true;winSlots.push({hints:currentHintUses,id:puzzle.id});best=Math.max(best,streak);save('suberi-best',best)}else{mistakes++;if(mode!=='daily'){streak=0;winSlots=[]}}}
+  if(favoriteSession)attemptCounted=ok;
   elapsed=started?performance.now()-started:0;
-  if(streak>=5&&!challengeDone){challengeElapsed=challengeTime();challengeDone=true}saveDailyResult();
+  if(!favoriteSession&&streak>=5&&!challengeDone){challengeElapsed=challengeTime();challengeDone=true}saveDailyResult();
   beep(ok?(challengeDone?'champion':'win'):'fail');
-  status(ok?(challengeDone?resultLabel()+'！':practice?'もう一度クリア！':`正解！ あと${5-streak}${mode==='daily'?'問':'連勝'}`):(reason||'3手目ではそろえられませんでした。もう一度！'),ok?'success':'error');
+  status(ok?(challengeDone?resultLabel()+'！':favoriteSession?'お気に入りの練習クリア！':practice?'もう一度クリア！':`正解！ あと${5-streak}${mode==='daily'?'問':'連勝'}`):(reason||'3手目ではそろえられませんでした。もう一度！'),ok?'success':'error');
   if(ok){celebrate(challengeDone);const a=[...own].sort((a,b)=>a-b);$('winLine').innerHTML=`<line x1="${a[0]%5*100+50}" y1="${Math.floor(a[0]/5)*100+50}" x2="${a[2]%5*100+50}" y2="${Math.floor(a[2]/5)*100+50}"/>`}render()
 }
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
@@ -154,13 +156,13 @@ async function playIntro(){
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function loadPuzzle(retry=false,showIntro=!retry,keepHintLock=false){
   if(challengeDone)return;stopThinking();if(!keepHintLock)hintUsedThisAttempt=false;hintPreview=false;board.classList.remove('hint-demo');firstSelected=false;confettiToken++;$('confetti').innerHTML='';$('confetti').classList.remove('grand');board.classList.remove('grand-win');token++;introToken++;intro=false;board.classList.remove('introducing');board.classList.remove('intro-reset');
-  if(retry){practice=attemptCounted}else{
+  if(retry){practice=favoriteSession?true:attemptCounted;if(favoriteSession)attemptCounted=false}else{
     practice=false;attemptCounted=false;currentHintUses=0;
     if(index>=order.length){if(mode==='daily')return;order=shuffle([...puzzles.keys()]);index=0}
     puzzle=puzzles[order[index++]];newEmojiPair();
     currentBoard={id:puzzle.id,mode,date:challengeDate,round:index,own:[...puzzle.own],other:[...puzzle.other],skin,emojiPair:emojiPairIndex};playedBoards.push(currentBoard);if(playedBoards.length>5)playedBoards.shift();paintSkin()
   }
-  roundState=showIntro?'WAIT_START':'READY';selected=null;phase=0;busy=keepHintLock;finished=false;started=0;elapsed=0;$('timer').textContent=timeString(challengeTime());$('winLine').innerHTML='';$('number').hidden=mode==='daily';$('number').textContent=`3手詰め · No. ${String(puzzle.id).padStart(3,'0')}${practice?' · 再プレイ':''}`;status(prompt());$('introControls').hidden=true;if(roundState==='WAIT_START')resetPositions(...officialSides(),false);else resetPositions(puzzle.own,puzzle.other,retry);saveDailyResult()
+  roundState=showIntro?'WAIT_START':'READY';selected=null;phase=0;busy=keepHintLock;finished=false;started=0;elapsed=0;$('timer').textContent=timeString(challengeTime());$('winLine').innerHTML='';$('number').hidden=!favoriteSession&&mode==='daily';$('number').textContent=`3手詰め · No. ${String(puzzle.id).padStart(3,'0')}${practice?' · 再プレイ':''}`;status(prompt());$('introControls').hidden=true;if(roundState==='WAIT_START')resetPositions(...officialSides(),false);else resetPositions(puzzle.own,puzzle.other,retry);saveDailyResult()
 }
 async function useHint(){
   if(!puzzle||roundState!=='READY'||anyPanelOpen()||busy||challengeDone||(finished&&attemptCounted)||hintUsedThisAttempt)return;
@@ -171,6 +173,7 @@ async function useHint(){
   await destination(puzzle.solution.to,true);if(mine!==token)return;board.classList.remove('hint-demo');if(!finished&&!busy)status('あと1手を自分でそろえよう');render()
 }
 function newChallenge(){
+  if(favoriteSession)return;
   stopThinking();saveDailyResult();token++;introToken++;challengeDone=false;thinkingTotal=0;thinkingSince=null;challengeStarted=0;challengeElapsed=0;hintUses=0;currentHintUses=0;winSlots=[];playedBoards=[];currentBoard=null;streak=0;total=0;correct=0;mistakes=0;puzzle=null;practice=false;attemptCounted=false;
   challengeDate=mode==='daily'?jstDate():'';dailyRunId=Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);order=mode==='daily'?dailyOrder(challengeDate):shuffle([...puzzles.keys()]);index=0;if(puzzles.length)loadPuzzle()
 }
@@ -204,12 +207,34 @@ function openTweet(){if(!challengeDone)return;window.open('https://twitter.com/i
 function saveBoards(snapshots){
   try{const data=buildShareImage(snapshots);if(!data)return;const link=document.createElement('a');link.href=data.dataUrl;link.download=mode==='daily'?`suberi-daily-${challengeDate}${snapshots.length===1?'-round-'+snapshots[0].round:''}.png`:snapshots.length===1?`suberi-puzzle-${snapshots[0].id}.png`:data.filename;document.body.append(link);link.click();link.remove();$('historyStatus').textContent='PNG画像を保存しました。'}catch{$('historyStatus').textContent='画像を保存できませんでした。もう一度お試しください。'}
 }
-function openHistory(){
-  if(!challengeDone)return;$('historyBoards').innerHTML='';$('historyStatus').textContent='出題時の配置です。答えは載りません。';
-  playedBoards.forEach(p=>{const card=document.createElement('section');card.className='history-card';const cv=document.createElement('canvas');cv.width=320;cv.height=320;try{drawStartBoard(cv.getContext('2d'),p,4,4,312)}catch{}card.append(cv);const label=document.createElement('strong');label.textContent=snapshotLabel(p);card.append(label);const button=document.createElement('button');button.textContent='この盤面を保存';button.onclick=()=>saveBoards([p]);card.append(button);const favorite=document.createElement('button');favorite.textContent='☆ お気に入りに保存';favorite.onclick=()=>{if(addFavorite(p,'historyStatus')){favorite.textContent='★ 保存済み';favorite.disabled=true}};favorite.disabled=readFavorites().some(f=>f.key===favoriteKey(p));if(favorite.disabled)favorite.textContent='★ 保存済み';card.append(favorite);$('historyBoards').append(card)});
-  showPanel('historyDialog','closeHistory')
+let historySkin=skin;
+function displaySnapshot(p,chosen=skin){return {...p,skin:chosen,emojiPair:Number.isInteger(p.emojiPair)&&emojiPairs[p.emojiPair]?p.emojiPair:Math.max(0,emojiPairIndex)}}
+function appendSnapshotMatchup(card,p){
+ const row=document.createElement('div');row.className='matchup snapshot-matchup';
+ for(let side=0;side<2;side++){
+  const group=document.createElement('span');group.className='matchup-side';const label=document.createElement('span');label.textContent=side?'相手':'あなた';const icon=document.createElement('b');icon.className='matchup-icon '+p.skin+(side?' other':'');icon.setAttribute('aria-hidden','true');
+  if(p.skin==='cat')icon.innerHTML=cat;else if(p.skin==='emoji')icon.textContent=emojiPairs[p.emojiPair][side][0];
+  group.append(label);group.append(icon);row.append(group)
+ }
+ card.append(row)
 }
-$('historyButton').onclick=openHistory;$('closeHistory').onclick=()=>$('historyDialog').close();$('saveAllBoards').onclick=()=>saveBoards(playedBoards);
+function renderHistoryBoards(){
+ $('historyBoards').innerHTML='';
+ for(const [id,value] of [['historyPlain','plain'],['historyCats','cat'],['historyEmojis','emoji']])$(id).setAttribute('aria-pressed',historySkin===value);
+ playedBoards.forEach(original=>{
+ const p=displaySnapshot(original,historySkin),card=document.createElement('section');card.className='history-card';
+ const cv=document.createElement('canvas');cv.width=320;cv.height=320;try{drawStartBoard(cv.getContext('2d'),p,4,4,312)}catch{}card.append(cv);
+ const label=document.createElement('strong');label.textContent=snapshotLabel(p);card.append(label);appendSnapshotMatchup(card,p);
+ const image=document.createElement('button');image.textContent='この盤面を画像保存';image.onclick=()=>saveBoards([p]);card.append(image);
+ const favorite=document.createElement('button');favorite.textContent='☆ お気に入りに保存';favorite.disabled=readFavorites().some(f=>f.key===favoriteKey(p));if(favorite.disabled)favorite.textContent='★ 保存済み';
+ favorite.onclick=()=>{if(addFavorite(p,'historyStatus')){favorite.textContent='★ 保存済み';favorite.disabled=true}};card.append(favorite);$('historyBoards').append(card)
+ })
+}
+function openHistory(){
+ if(!challengeDone)return;historySkin=skin;$('historyStatus').textContent='出題時の配置です。あなたの駒は各盤面の下で確認できます。答えは載りません。';renderHistoryBoards();showPanel('historyDialog','closeHistory')
+}
+for(const [id,value] of [['historyPlain','plain'],['historyCats','cat'],['historyEmojis','emoji']])$(id).onclick=()=>{historySkin=value;renderHistoryBoards()};
+$('historyButton').onclick=openHistory;$('closeHistory').onclick=()=>$('historyDialog').close();$('saveAllBoards').onclick=()=>saveBoards(playedBoards.map(p=>displaySnapshot(p,historySkin)));
 $('hint').onclick=useHint;$('newChallenge').onclick=newChallenge;
 $('skipIntro').onclick=()=>{if(intro&&!anyPanelOpen())finishIntro()};$('startRound').onclick=startRound;
 $('sound').onclick=()=>{sound=!sound;save('suberi-sound',sound);if(!sound&&master)master.gain.setValueAtTime(0,audio.currentTime);unlock();$('sound').innerHTML=`♪ <span>${sound?'ON':'OFF'}</span>`;$('sound').setAttribute('aria-pressed',sound);$('sound').setAttribute('aria-label',`効果音を${sound?'オフ':'オン'}にする`);beep('tap')};$('plain').onclick=()=>setSkin('plain');$('cats').onclick=()=>setSkin('cat');$('emojis').onclick=()=>{if(skin==='emoji')newEmojiPair();setSkin('emoji')};$('retry').onclick=()=>{if(canRetry())loadPuzzle(true)};$('next').onclick=()=>{if(puzzles.length&&!busy&&finished&&(mode!=='daily'||attemptCounted))loadPuzzle()};$('finishShareButton').onclick=openTweet;
@@ -222,7 +247,7 @@ wirePanel('helpDialog','closeHelp','helpButton');wirePanel('historyDialog','clos
 $('confirmMode').onclick=()=>{const next=pendingMode;$('modeDialog').close();if(next)applyMode(next)};
 $('helpButton').onclick=openHelp;$('dailyRecordsButton').onclick=openDailyRecords;$('dailyMode').onclick=()=>switchMode('daily');$('randomMode').onclick=()=>switchMode('random');
 const FAVORITES_STORAGE='suberi-favorites-v1';
-let favoriteReplay=null;
+let favoriteSession=null,pendingDeleteKey=null,pendingDeleteButton=null;
 function favoriteKey(p){return BANK_VERSION+':'+p.id}
 function validFavorite(f){const p=f?.puzzle;if(!p||!Array.isArray(p.own)||!Array.isArray(p.other))return false;const positions=[...p.own,...p.other];return typeof f.key==='string'&&Number.isInteger(p.id)&&p.own.length===3&&p.other.length===3&&positions.every(n=>Number.isInteger(n)&&n>=0&&n<25)&&new Set(positions).size===6&&!won(p.own)&&!won(p.other)&&p.solution&&moves(p.own,p.other).some(m=>same(m,p.solution))}
 function readFavorites(){const data=read(FAVORITES_STORAGE,[]);return Array.isArray(data)?data.filter(validFavorite):[]}
@@ -233,38 +258,42 @@ function addFavorite(snapshot,statusId){
  const source=puzzles.find(p=>p.id===snapshot.id);if(!source){$(statusId).textContent='問題を保存できませんでした。';return false}
  return writeFavorites([...items,{key,bank:BANK_VERSION,label:snapshotLabel(snapshot),savedAt:Date.now(),puzzle:JSON.parse(JSON.stringify(source))}],statusId,'お気に入りに保存しました。この端末で再プレイできます。')
 }
+
+function resetDeleteConfirmation(){if(pendingDeleteButton)pendingDeleteButton.textContent='削除';pendingDeleteKey=null;pendingDeleteButton=null}
 function renderFavorites(){
  const list=$('favoritesList');list.innerHTML='';const items=readFavorites();
  if(!items.length){const empty=document.createElement('p');empty.textContent='まだお気に入りがありません。5問終了後「５試合の配置を見る・保存」から好きな問題を保存できます。';list.append(empty)}
  items.forEach(item=>{
- const card=document.createElement('section');card.className='history-card';const cv=document.createElement('canvas');cv.width=320;cv.height=320;try{drawStartBoard(cv.getContext('2d'),{...item.puzzle,skin:'plain'},4,4,312)}catch{}card.append(cv);
- const label=document.createElement('strong');label.textContent=item.label||'お気に入りの問題';card.append(label);
- const play=document.createElement('button');play.textContent='再プレイ';play.onclick=()=>openFavoriteReplay(item,play);card.append(play);
- const remove=document.createElement('button');remove.textContent='削除';remove.onclick=()=>{if(writeFavorites(readFavorites().filter(f=>f.key!==item.key),'favoritesStatus','お気に入りから削除しました。')){renderFavorites();$('closeFavorites').focus()}};card.append(remove);list.append(card)
+ const card=document.createElement('section');card.className='history-card';const p=displaySnapshot(item.puzzle);
+ const cv=document.createElement('canvas');cv.width=320;cv.height=320;try{drawStartBoard(cv.getContext('2d'),p,4,4,312)}catch{}card.append(cv);
+ const label=document.createElement('strong');label.textContent=item.label||'お気に入りの問題';card.append(label);appendSnapshotMatchup(card,p);
+ const play=document.createElement('button');play.textContent='再プレイ';play.onclick=()=>{resetDeleteConfirmation();openFavoriteReplay(item)};card.append(play);
+ const remove=document.createElement('button');remove.textContent='削除';remove.onclick=()=>{
+  if(pendingDeleteKey!==item.key){resetDeleteConfirmation();pendingDeleteKey=item.key;pendingDeleteButton=remove;remove.textContent='本当に削除？';$('favoritesStatus').textContent='もう一度押すと削除します。別の操作でキャンセルできます。';return}
+  if(writeFavorites(readFavorites().filter(f=>f.key!==item.key),'favoritesStatus','お気に入りから削除しました。')){resetDeleteConfirmation();renderFavorites();$('closeFavorites').focus()}
+ };card.append(remove);list.append(card)
  })
 }
-function openFavorites(){$('favoritesStatus').textContent='';renderFavorites();showPanel('favoritesDialog','closeFavorites',$('favoritesButton'))}
-function resetFavoriteReplay(){const p=favoriteReplay.puzzle;favoriteReplay={puzzle:p,own:[...p.own],other:[...p.other],selected:null,phase:0,finished:false};$('favoriteReplayStatus').textContent='自分の紫の石を選んで、動かす場所を選ぼう。';renderFavoriteReplay()}
-function openFavoriteReplay(item,opener){favoriteReplay={puzzle:item.puzzle};$('favoriteReplayTitle').textContent=item.label||'お気に入りの問題';resetFavoriteReplay();showPanel('favoriteReplayDialog','closeFavoriteReplay',opener)}
-function renderFavoriteReplay(focusCell=null){
- const r=favoriteReplay,b=$('favoriteReplayBoard');b.innerHTML='';if(!r)return;const targets=r.selected===null?[]:moves(r.own,r.other).filter(m=>m.from===r.selected).map(m=>m.to);
- for(let i=0;i<25;i++){const cell=document.createElement('button'),mine=r.own.includes(i),theirs=r.other.includes(i);cell.textContent=mine?'●':theirs?'○':targets.includes(i)?'・':'';cell.className=(mine?'replay-own ':theirs?'replay-other ':'')+(r.selected===i?'replay-selected':'');cell.setAttribute('aria-label',(Math.floor(i/5)+1)+'行'+(i%5+1)+'列 '+(mine?'自分の石':theirs?'相手の石':targets.includes(i)?'移動先':'空き'));cell.setAttribute('aria-pressed',r.selected===i);cell.disabled=r.finished||(!mine&&!targets.includes(i));cell.onclick=()=>favoriteReplayClick(i);b.append(cell)}
- if(focusCell!==null){if(r.finished)$('favoriteReplayReset').focus();else b.children[focusCell]?.focus()}
+function openFavorites(){resetDeleteConfirmation();$('favoritesStatus').textContent='';renderFavorites();showPanel('favoritesDialog','closeFavorites',$('favoritesButton'))}
+function openFavoriteReplay(item){
+ if(favoriteSession||busy||intro){$('favoritesStatus').textContent='駒の動きが終わってから再プレイしてください。';return}
+ stopThinking();saveDailyResult();
+ favoriteSession={state:{order,index,puzzle,own,other,selected,phase,busy,finished,practice,started,elapsed,streak,total,correct,best,attemptCounted,intro,hintUses,challengeStarted,challengeElapsed,challengeDone,emojiPairIndex,firstSelected,winSlots,currentHintUses,playedBoards,currentBoard,hintPreview,hintUsedThisAttempt,mode,challengeDate,thinkingTotal,thinkingSince,dailyRunId,mistakes,lastCheckpoint,hiddenAt,roundState,pendingMode},status:$('status').textContent,statusClass:$('status').className,winLine:$('winLine').innerHTML};
+ token++;introToken++;puzzle=item.puzzle;order=[];index=0;own=[...puzzle.own];other=[...puzzle.other];selected=null;phase=0;busy=false;finished=false;practice=true;started=0;elapsed=0;streak=0;total=0;correct=0;attemptCounted=false;intro=false;hintUses=0;challengeStarted=0;challengeElapsed=0;challengeDone=false;firstSelected=false;winSlots=[];currentHintUses=0;playedBoards=[];currentBoard=null;hintPreview=false;hintUsedThisAttempt=false;thinkingTotal=0;thinkingSince=null;mistakes=0;roundState='WAIT_START';pendingMode=null;
+ $('favoritePracticeLabel').textContent=(item.label||'保存した問題')+' · お気に入りの練習';
+ $('favoritePracticeBanner').hidden=false;document.body.classList.add('favorite-practice');
+ $('favoritesDialog').close();paintSkin();loadPuzzle(true,true);$('startRound').focus()
 }
-function favoriteReplayClick(i){
- const r=favoriteReplay;if(!r||r.finished)return;
- if(r.own.includes(i)){r.selected=r.selected===i?null:i;renderFavoriteReplay(i);return}
- const m={from:r.selected,to:i};if(!moves(r.own,r.other).some(n=>same(m,n)))return;r.own=moved(r.own,m);r.selected=null;
- if(r.phase===0){
- const candidates=moves(r.other,r.own).map(m=>({...m,immediate:won(moved(r.other,m)),finishes:moves(r.own,moved(r.other,m)).filter(w=>won(moved(r.own,w))).length}));
- const reply=candidates.find(m=>m.immediate)||candidates.sort((a,b)=>a.finishes-b.finishes)[0];if(reply)r.other=moved(r.other,reply);r.phase=2;r.finished=!reply||won(r.other);$('favoriteReplayStatus').textContent=r.finished?'相手が先にそろえました。もう一度挑戦しよう。':'あと1手。3個そろえる手を探そう。'
- }else{r.finished=true;$('favoriteReplayStatus').textContent=won(r.own)?'正解！ お気に入りの練習クリア！':'3手目ではそろえられませんでした。もう一度挑戦しよう。'}
- renderFavoriteReplay(i)
+function leaveFavoriteReplay(){
+ if(!favoriteSession)return;stopThinking();token++;introToken++;confettiToken++;$('confetti').innerHTML='';$('confetti').classList.remove('grand');board.classList.remove('grand-win','introducing','intro-reset','hint-demo');
+ const saved=favoriteSession;favoriteSession=null;({order,index,puzzle,own,other,selected,phase,busy,finished,practice,started,elapsed,streak,total,correct,best,attemptCounted,intro,hintUses,challengeStarted,challengeElapsed,challengeDone,emojiPairIndex,firstSelected,winSlots,currentHintUses,playedBoards,currentBoard,hintPreview,hintUsedThisAttempt,mode,challengeDate,thinkingTotal,thinkingSince,dailyRunId,mistakes,lastCheckpoint,hiddenAt,roundState,pendingMode}=saved.state);thinkingSince=null;
+ $('favoritePracticeBanner').hidden=true;document.body.classList.remove('favorite-practice');$('introControls').hidden=true;
+ $('winLine').innerHTML=saved.winLine;paintSkin();status(saved.status);$('status').className=saved.statusClass;openFavorites();render()
 }
-$('favoritesButton').onclick=openFavorites;
-$('favoriteReplayReset').onclick=()=>{if(favoriteReplay)resetFavoriteReplay()};
+$('favoritesButton').onclick=()=>favoriteSession?leaveFavoriteReplay():openFavorites();$('leaveFavoriteReplay').onclick=leaveFavoriteReplay;
 wirePanel('favoritesDialog','closeFavorites','favoritesButton');
-wirePanel('favoriteReplayDialog','closeFavoriteReplay','closeFavorites');
+const favoritesClose=$('favoritesDialog').onclose;$('favoritesDialog').onclose=()=>{resetDeleteConfirmation();favoritesClose()};
+$('favoritesDialog').addEventListener?.('click',e=>{if(e.target!==pendingDeleteButton)resetDeleteConfirmation()});
 function confirmOfficial(e){e.preventDefault();showPanel('externalDialog','stayHere',e.currentTarget||$('officialLink'))}
 $('officialLink').onclick=confirmOfficial;$('subtitleOfficial').onclick=confirmOfficial;$('visitOfficial').onclick=()=>{$('externalDialog').close();window.open('https://www.neutreeko.net/index.htm','_blank','noopener,noreferrer')};
 document.addEventListener?.('visibilitychange',()=>{if(document.hidden){hiddenAt=Date.now();stopThinking();saveDailyResult()}else{if(hiddenAt&&Date.now()-hiddenAt>30*60*1000&&!anyPanelOpen())openHelp();syncThinking()}});window.addEventListener?.('pagehide',()=>{stopThinking();saveDailyResult()});

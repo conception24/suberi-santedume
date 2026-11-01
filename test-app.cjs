@@ -68,35 +68,35 @@ function wrongPuzzle(immediate=false){context.immediate=immediate;run(`puzzle=pu
  assert(run("shareText().startsWith('すべり三手詰めデイリー問題（')&&shareText().includes('\\n5連勝（')&&shareText().endsWith('#ニュートリーコファンメイド')"));
  canvasTexts.length=0;run('buildShareImage(playedBoards)');assert(!canvasTexts.some(t=>t.includes('No.')),'daily export must not reveal bank IDs');assert(canvasTexts.some(t=>t.includes(day+' · 問1')));run("$('historyButton').onclick()");assert(el('historyDialog').open);el('historyDialog').onclick({target:el('historyDialog'),clientX:100,clientY:100});assert(el('historyDialog').open);el('historyDialog').onclick({target:el('historyDialog'),clientX:0,clientY:0});assert(!el('historyDialog').open);run("$('dailyRecordsButton').onclick()");assert(el('dailyRecordsDialog').open&&el('dailyRecordsList').children.length>0);run("$('closeDailyRecords').onclick()");
 
- // Favorites: save from the actual five-round result, duplicate, persistence, isolated practice, failure and deletion.
+ // Favorites reuse the normal board/audio, isolate all challenge state, and require two-step deletion.
  run('openHistory()');assert.equal(el('historyBoards').children.length,5);
- const saveFavorite=el('historyBoards').children[0].children.at(-1);saveFavorite.click();
- assert(saveFavorite.disabled);assert.equal(run('readFavorites().length'),1);
- const serialized=storage.get('suberi-favorites-v1');
- assert.equal(JSON.parse(serialized)[0].puzzle.id,run('playedBoards[0].id'));
- run("addFavorite(playedBoards[0],'historyStatus')");assert.equal(run('readFavorites().length'),1);
+ const beforeHistorySkin=run('skin'),beforeBoardSkins=run('JSON.stringify(playedBoards)');
+ run("$('historyCats').onclick()");assert.equal(run('historySkin'),'cat');assert.equal(run('skin'),beforeHistorySkin);assert.equal(run('JSON.stringify(playedBoards)'),beforeBoardSkins);
+ assert(el('historyBoards').children.every(c=>c.children[2].children[0].children[0].textContent==='あなた'));
+ run("$('historyEmojis').onclick()");assert.equal(run('historySkin'),'emoji');run("$('historyPlain').onclick()");
+ const saveFavorite=el('historyBoards').children[0].children.at(-1);saveFavorite.click();assert(saveFavorite.disabled);assert.equal(run('readFavorites().length'),1);
+ const serialized=storage.get('suberi-favorites-v1');run("addFavorite(playedBoards[0],'historyStatus')");assert.equal(run('readFavorites().length'),1);
  run("$('closeHistory').onclick();openFavorites()");
- assert.equal(el('favoritesList').children.length,1);assert(el('favoritesDialog').open);
- const originalState=run('JSON.stringify({puzzle,own,other,phase,streak,total,correct,best,playedBoards,index,order,challengeDate,dailyRunId})'),originalDaily=storage.get('suberi-daily-results-v1'),originalBest=storage.get('suberi-best');
- const replayButton=el('favoritesList').children[0].children[2];replayButton.click();
- assert(el('favoriteReplayDialog').open);assert.equal(el('favoriteReplayBoard').children.length,25);
- run('favoriteReplayClick(favoriteReplay.puzzle.solution.from);favoriteReplayClick(favoriteReplay.puzzle.solution.to);var fw=moves(favoriteReplay.own,favoriteReplay.other).find(m=>won(moved(favoriteReplay.own,m)));favoriteReplayClick(fw.from);favoriteReplayClick(fw.to)');
- assert(run('favoriteReplay.finished&&won(favoriteReplay.own)'));
- run("$('favoriteReplayReset').onclick()");assert(run('!favoriteReplay.finished&&favoriteReplay.phase===0'));
- run("$('closeFavoriteReplay').onclick()");
- assert.equal(run('JSON.stringify({puzzle,own,other,phase,streak,total,correct,best,playedBoards,index,order,challengeDate,dailyRunId})'),originalState);
- assert.equal(storage.get('suberi-daily-results-v1'),originalDaily);assert.equal(storage.get('suberi-best'),originalBest);
- // Parsing a fresh storage roundtrip preserves the complete playable puzzle.
+ const originalState=run('JSON.stringify({puzzle,own,other,phase,streak,total,correct,best,playedBoards,index,order,challengeDate,dailyRunId,hintUses,winSlots})'),originalDaily=JSON.stringify(JSON.parse(storage.get('suberi-daily-results-v1')),(k,v)=>k==='updatedAt'?undefined:v),originalBest=storage.get('suberi-best');
+ el('favoritesList').children[0].children[3].click();assert(run('!!favoriteSession'));assert(!el('favoritePracticeBanner').hidden);assert(!el('favoritesDialog').open);assert(run("roundState==='WAIT_START'"));
+ run('startRound()');await solve();assert(run('finished&&won(own)&&streak===0&&correct===0&&total===0&&!challengeDone'));assert(el('next').hidden);assert(!el('retry').hidden);assert(el('status').textContent.includes('お気に入り'));
+ run("$('retry').onclick();startRound()");await run('useHint()');await third();assert(run('hintUses===1'));assert.equal(JSON.stringify(JSON.parse(storage.get('suberi-daily-results-v1')),(k,v)=>k==='updatedAt'?undefined:v),originalDaily);assert.equal(storage.get('suberi-best'),originalBest);
+ run('newChallenge();switchMode("random")');assert(run('!!favoriteSession'));run("$('leaveFavoriteReplay').onclick()");
+ assert.equal(run('JSON.stringify({puzzle,own,other,phase,streak,total,correct,best,playedBoards,index,order,challengeDate,dailyRunId,hintUses,winSlots})'),originalState);
+ assert.equal(JSON.stringify(JSON.parse(storage.get('suberi-daily-results-v1')),(k,v)=>k==='updatedAt'?undefined:v),originalDaily);assert.equal(storage.get('suberi-best'),originalBest);
  storage.set('suberi-favorites-v1',JSON.stringify(JSON.parse(serialized)));assert(run('validFavorite(readFavorites()[0])'));
  const normalSet=context.localStorage.setItem;context.localStorage.setItem=()=>{throw Error('quota')};
  assert.equal(run("addFavorite(playedBoards[1],'historyStatus')"),false);assert(el('historyStatus').textContent.includes('保存できません'));
- el('favoritesList').children[0].children[3].click();assert.equal(run('readFavorites().length'),1);assert(el('favoritesStatus').textContent.includes('保存できません'));
- context.localStorage.setItem=normalSet;el('favoritesList').children[0].children[3].click();assert.equal(run('readFavorites().length'),0);assert(el('favoritesList').children[0].textContent.includes('まだお気に入り'));
- storage.set('suberi-favorites-v1','broken');assert.equal(run('readFavorites().length'),0);
- storage.set('suberi-favorites-v1',JSON.stringify([null,{puzzle:{own:'invalid'}}]));assert.equal(run('readFavorites().length'),0);
- storage.delete('suberi-favorites-v1');run("$('closeFavorites').onclick()");
- // Every saved puzzle can be solved with the replay engine, without altering the current challenge.
- for(const p of data){context.favoriteTest=p;run("favoriteReplay={puzzle:favoriteTest};resetFavoriteReplay();favoriteReplayClick(favoriteTest.solution.from);favoriteReplayClick(favoriteTest.solution.to);var fw=moves(favoriteReplay.own,favoriteReplay.other).find(m=>won(moved(favoriteReplay.own,m)));favoriteReplayClick(fw.from);favoriteReplayClick(fw.to)");assert(run('favoriteReplay.finished&&won(favoriteReplay.own)'))}
+ let removeFavorite=el('favoritesList').children[0].children[4];removeFavorite.click();assert.equal(removeFavorite.textContent,'本当に削除？');assert.equal(run('readFavorites().length'),1);
+ removeFavorite.click();assert.equal(run('readFavorites().length'),1);assert(el('favoritesStatus').textContent.includes('保存できません'));
+ context.localStorage.setItem=normalSet;run("$('closeFavorites').onclick();openFavorites()");removeFavorite=el('favoritesList').children[0].children[4];assert.equal(removeFavorite.textContent,'削除');
+ removeFavorite.click();run('resetDeleteConfirmation()');assert.equal(removeFavorite.textContent,'削除');removeFavorite.click();assert.equal(run('readFavorites().length'),1);removeFavorite.click();assert.equal(run('readFavorites().length'),0);assert(el('favoritesList').children[0].textContent.includes('まだお気に入り'));
+ storage.set('suberi-favorites-v1','broken');assert.equal(run('readFavorites().length'),0);storage.set('suberi-favorites-v1',JSON.stringify([null,{puzzle:{own:'invalid'}}]));assert.equal(run('readFavorites().length'),0);storage.delete('suberi-favorites-v1');run("$('closeFavorites').onclick()");
+ // All 200 saved puzzles use the same normal solve path, with no scores added.
+ for(const p of data){context.favoriteTest=p;run('openFavoriteReplay({puzzle:favoriteTest});startRound()');await solve();assert(run('finished&&won(own)&&correct===0&&streak===0'));run('leaveFavoriteReplay();$("closeFavorites").onclick()')}
+ // Resuming an in-progress challenge restores its board/time.
+ run('newChallenge();startRound()');now+=123;run("openFavorites()");const pausedState=run('JSON.stringify({puzzle,own,other,phase,streak,index,thinkingTotal})');
+ run('openFavoriteReplay({puzzle:puzzles[0]});startRound()');await solve();now+=5000;run('leaveFavoriteReplay()');assert.equal(run('JSON.stringify({puzzle,own,other,phase,streak,index,thinkingTotal})'),pausedState);run("$('closeFavorites').onclick()");assert(run('thinkingSince!==null'));
  // Snapshot the date at challenge start. A date rollover cannot replace an active board.
  run('newChallenge()');const savedDate=run('challengeDate'),savedBoard=run('puzzle.id');run("var realJstDate=jstDate;jstDate=()=> '2099-01-01'");assert.equal(run('challengeDate'),savedDate);assert.equal(run('puzzle.id'),savedBoard);assert(run("modeCaption().includes('開始日の5問')"));run('newChallenge()');assert.equal(run('challengeDate'),'2099-01-01');run('jstDate=realJstDate');
  // Random mode is independent and retains its original streak-on-loss semantics.
