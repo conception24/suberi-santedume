@@ -126,3 +126,18 @@ footer{font-size:12px}.attribution{font-size:13px}.note{font-size:12px!important
 /* Hint is a deliberate two-line label, not inline text squeezed into a fixed height. */
 .actions #hint{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;height:auto;min-height:52px;padding:6px 10px;line-height:1.2;text-align:center}
 .actions #hint>span{display:block;margin:0;font-size:12px;line-height:1.2;white-space:nowrap}
+/* Favorites practice keeps all normal challenge state intact. */
+#favoritesDialog,#favoriteReplayDialog{width:min(580px,calc(100% - 24px));max-height:88vh;overflow:auto;padding:20px}
+#favoritesDialog h2,#favoriteReplayDialog h2{margin:0;font-size:18px}
+#favoritesDialog p,#favoriteReplayDialog p{font-size:14px;line-height:1.6}
+#closeFavorites,#closeFavoriteReplay,#favoriteReplayReset{padding:9px 12px;border:2px solid var(--ink);border-radius:9px;background:#ffe62d;flex:none}
+.favorite-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.favorite-list>p{grid-column:1/-1}
+.favorite-replay-board{display:grid;grid-template-columns:repeat(5,1fr);aspect-ratio:1;border:3px solid var(--ink);margin-top:16px}
+.favorite-replay-board button{aspect-ratio:1;min-width:0;padding:0;border:1px solid #d8c5d4;border-radius:0;background:#fff9ee;font-size:clamp(22px,7vw,48px);opacity:1;color:var(--ink)}
+.favorite-replay-board button:nth-child(even){background:#fce6f2}
+.favorite-replay-board .replay-own{color:#7950ba}
+.favorite-replay-board .replay-selected{box-shadow:inset 0 0 0 4px #7950ba}
+.favorite-replay-board button:focus-visible{outline:3px solid #7950ba;outline-offset:-4px}
+.top-tools{flex-wrap:wrap}
+@media(max-width:400px){.top-tools .help-button,.daily-records-button{font-size:12px;padding-inline:7px}.top-tools .skins{margin-left:auto}.favorite-list{gap:8px}}

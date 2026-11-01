@@ -26,7 +26,7 @@
     <button id="sound" class="icon" aria-label="効果音をオフにする" aria-pressed="true">♪ <span>ON</span></button>
   </header>
   <p class="subtitle"><a id="subtitleOfficial" href="https://www.neutreeko.net/index.htm">ニュートリーコ</a>のファンメイド、３手詰めチャレンジ</p>
-  <div class="top-tools"><button id="helpButton" class="help-button" aria-haspopup="dialog">遊び方</button><button id="dailyRecordsButton" class="daily-records-button" aria-label="デイリーの成績">成績</button>      <div class="skins" role="group" aria-label="駒の見た目">
+  <div class="top-tools"><button id="helpButton" class="help-button" aria-haspopup="dialog">遊び方</button><button id="dailyRecordsButton" class="daily-records-button" aria-label="デイリーの成績">成績</button><button id="favoritesButton" class="daily-records-button" aria-haspopup="dialog">お気に入り</button>      <div class="skins" role="group" aria-label="駒の見た目">
         <button id="plain" aria-pressed="true">石</button><button id="cats" aria-pressed="false">猫</button><button id="emojis" aria-pressed="false">絵文字</button>
       </div></div>
   <section class="game" aria-label="3手詰めパズル">
@@ -48,7 +48,7 @@
         </div>
       </div>
       <button id="startRound" class="round-start" hidden>１戦目：スタート</button>
-      <div id="finishShare" class="finish-share" hidden><button id="finishShareButton"><span aria-hidden="true">𝕏</span> <span id="finishShareLabel">5連勝をシェア ↗</span></button><button id="historyButton" class="history-link" hidden>５試合の配置を見る・保存</button></div>
+      <div id="finishShare" class="finish-share" hidden><button id="finishShareButton"><span aria-hidden="true">𝕏</span> <span id="finishShareLabel">5連勝をシェア ↗</span></button><button id="historyButton" class="history-link" hidden>５試合の配置を見る・保存 / お気に入り</button></div>
       <svg id="winLine" viewBox="0 0 500 500" aria-hidden="true"></svg>
     </div>
     <div id="toolsDock" class="tools-dock" hidden></div>
@@ -82,6 +82,17 @@
     <button id="saveAllBoards">まとめて画像を保存</button>
     <p id="historyStatus" class="history-status" role="status"></p>
   </dialog>
+  <dialog id="favoritesDialog" aria-labelledby="favoritesTitle">
+    <div class="history-heading"><h2 id="favoritesTitle">お気に入り</h2><button id="closeFavorites">閉じる</button></div>
+    <p>この端末・このブラウザー内に保存されます（アカウントには紐づきません）。閲覧データの削除やプライベート閲覧の終了などで消えることがあります。別端末・別ブラウザーには同期されません。再プレイは通常の成績に含まれません。</p>
+    <div id="favoritesList" class="favorite-list"></div><p id="favoritesStatus" role="status"></p>
+  </dialog>
+  <dialog id="favoriteReplayDialog" aria-labelledby="favoriteReplayTitle">
+    <div class="history-heading"><h2 id="favoriteReplayTitle">お気に入りの問題</h2><button id="closeFavoriteReplay">閉じる</button></div>
+    <p>お気に入りの練習 · 紫の石を3手でそろえよう</p>
+    <div id="favoriteReplayBoard" class="favorite-replay-board" aria-label="お気に入りの練習盤面"></div>
+    <p id="favoriteReplayStatus" role="status"></p><button id="favoriteReplayReset">もう一度挑戦する</button>
+  </dialog>
   <dialog id="dailyRecordsDialog" aria-labelledby="dailyRecordsTitle">
     <div class="history-heading"><h2 id="dailyRecordsTitle">デイリーの成績</h2><button id="closeDailyRecords">閉じる</button></div>
     <p class="local-note">この端末・ブラウザに保存されます。全国ランキングではありません。</p>
@@ -98,3 +109,4 @@
     <div><button id="stayHere">ここに残る</button><button id="visitOfficial">本家を開く ↗</button></div>
   </dialog>
 </main><script src="app.js"></script></body></html>
+

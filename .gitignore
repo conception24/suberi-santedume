@@ -9,3 +9,6 @@ Thumbs.db
 .openai/
 *.zip
 coverage/
+
+# Local isolated browser verification data
+.qa/
