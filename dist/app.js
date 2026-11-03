@@ -9,7 +9,7 @@ const read=(k,f)=>{try{return JSON.parse(localStorage.getItem(k))??f}catch{retur
 const save=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};
 let puzzles=[],order=[],index=0,puzzle,own=[],other=[],selected=null,phase=0,busy=false,finished=false,practice=false,started=0,elapsed=0,streak=0,total=0,correct=0,best=read('suberi-best',0),skin=['plain','cat','emoji'].includes(read('suberi-skin','plain'))?read('suberi-skin','plain'):'plain',sound=read('suberi-sound',true)!==false,audio,master,lastHover=0,token=0,attemptCounted=false,intro=false,introToken=0,hintUses=0,challengeStarted=0,challengeElapsed=0,challengeDone=false,emojiPairIndex=-1,firstSelected=false,confettiToken=0,winSlots=[],currentHintUses=0,playedBoards=[],currentBoard=null,hintPreview=false,hintUsedThisAttempt=false,mode=read('suberi-mode','daily')==='random'?'random':'daily',challengeDate='',thinkingTotal=0,thinkingSince=null,dailyRunId='',mistakes=0,lastCheckpoint=0,hiddenAt=0,roundState='WAIT_START',pendingMode=null;
 // Versioned, canonical puzzle IDs keep daily selection stable across browsers and file ordering.
-const BANK_VERSION='neutreeko-mixed-20261104-v2',LEGACY_BANK_VERSION='neutreeko-200-20261022-v1',MIXED_DAILY_START='2026-11-04',DAILY_STORAGE='suberi-daily-results-v1';
+const BANK_VERSION='neutreeko-mixed65-20261104-v3',PUZZLE_BANK_VERSION='neutreeko-mixed-20261104-v2',LEGACY_BANK_VERSION='neutreeko-200-20261022-v1',MIXED_DAILY_START='2026-11-04',DAILY_STORAGE='suberi-daily-results-v1';
 function jstDate(ms=Date.now()){return new Date(ms+9*60*60*1000).toISOString().slice(0,10)}
 function hashSeed(text){let h=2166136261;for(let i=0;i<text.length;i++){h^=text.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
 function seededRandom(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return ((t^t>>>14)>>>0)/4294967296}}
@@ -22,11 +22,11 @@ function dailyOrder(date,bank=puzzles){
   const canonical=bank.map((p,i)=>i).sort((a,b)=>bank[a].id-bank[b].id),random=seededRandom(hashSeed(bankVersionForDate(date)+':'+date));
   // Preserve every pre-release daily, including today's already-started games.
   if(date<MIXED_DAILY_START)return shuffledWith(canonical.filter(i=>bank[i].id<=200),random).slice(0,5);
-  const count=random()<.5?2:3,threat=shuffledWith(canonical.filter(i=>isCounterThreat(bank[i])),random),regular=shuffledWith(canonical.filter(i=>!isCounterThreat(bank[i])),random);
+  const count=random()<.75?3:4,threat=shuffledWith(canonical.filter(i=>isCounterThreat(bank[i])),random),regular=shuffledWith(canonical.filter(i=>!isCounterThreat(bank[i])),random);
   return shuffledWith([...threat.slice(0,count),...regular.slice(0,5-count)],random)
 }
 function randomOrder(){
-  const count=Math.random()<.5?2:3,types=shuffledWith([...Array(count).fill(1),...Array(5-count).fill(0)],Math.random);
+  const count=Math.random()<.75?3:4,types=shuffledWith([...Array(count).fill(1),...Array(5-count).fill(0)],Math.random);
   return types.map(type=>{if(!randomBags[type].length)randomBags[type]=shuffle(puzzles.filter(p=>Number(isCounterThreat(p))===type).map(p=>p.id));let at=randomBags[type].findIndex(id=>!recentPuzzleIds.includes(id));if(at<0)at=0;const id=randomBags[type].splice(at,1)[0];recentPuzzleIds.push(id);if(recentPuzzleIds.length>12)recentPuzzleIds.shift();return puzzles.findIndex(p=>p.id===id)})
 }
 function replyChoice(list,a,b){if(mode!=='daily')return list[Math.floor(Math.random()*list.length)];const sorted=[...list].sort((x,y)=>x.from-y.from||x.to-y.to),key=[bankVersionForDate(challengeDate),challengeDate,puzzle?.id,[...a].sort((x,y)=>x-y),[...b].sort((x,y)=>x-y)].join(':');return sorted[hashSeed(key)%sorted.length]}
@@ -42,7 +42,7 @@ function dailyRecordGroups(day){const runs=(day.runs||[]).filter(r=>r&&Number.is
 function openDailyRecords(){
   stopThinking();saveDailyResult();const records=readDailyRecords();$('dailyRecordsList').innerHTML='';const dates=Object.keys(records).sort().reverse();
   if(!dates.length){const p=document.createElement('p');p.textContent='まだ記録がありません。今日の5問から始めよう。';$('dailyRecordsList').append(p)}
-  for(const date of dates)for(const {bank,runs} of dailyRecordGroups(records[date])){const completed=runs.filter(r=>r.completed),best=[...completed].sort((a,b)=>a.ms-b.ms)[0],latest=runs.at(-1);if(!latest)continue;const row=document.createElement('section');row.className='daily-record';const title=document.createElement('strong');title.textContent=date+(date>=MIXED_DAILY_START&&bank===LEGACY_BANK_VERSION?'（旧版）':'');const text=document.createElement('p'),r=best||latest;text.textContent=`${best?'5問クリア':`途中 ${r.cleared}/5問`} · ${(r.ms/1000).toFixed(1)}秒 · ヒント${r.hints}回`;row.append(title);row.append(text);const note=document.createElement('small');note.textContent=best?`${completed.length}回クリア · 最速の記録${r.mistakes?` · ミス${r.mistakes}回`:''}`:'この端末に保存された途中記録';row.append(note);$('dailyRecordsList').append(row)}
+  for(const date of dates)for(const {bank,runs} of dailyRecordGroups(records[date])){const completed=runs.filter(r=>r.completed),best=[...completed].sort((a,b)=>a.ms-b.ms)[0],latest=runs.at(-1);if(!latest)continue;const row=document.createElement('section');row.className='daily-record';const title=document.createElement('strong');title.textContent=date+(bank!==bankVersionForDate(date)?'（旧版）':'');const text=document.createElement('p'),r=best||latest;text.textContent=`${best?'5問クリア':`途中 ${r.cleared}/5問`} · ${(r.ms/1000).toFixed(1)}秒 · ヒント${r.hints}回`;row.append(title);row.append(text);const note=document.createElement('small');note.textContent=best?`${completed.length}回クリア · 最速の記録${r.mistakes?` · ミス${r.mistakes}回`:''}`:'この端末に保存された途中記録';row.append(note);$('dailyRecordsList').append(row)}
   showPanel('dailyRecordsDialog','closeDailyRecords')
 }
 function modeCaption(){if(mode==='random')return 'ランダム · 5連勝チャレンジ';return challengeDate+' · '+(challengeDate!==jstDate()?'開始日の5問／次の挑戦で更新':'毎日0時更新（日本時間）')}
@@ -91,7 +91,7 @@ function render(){for(let i=0;i<6;i++){const pos=i<3?own[i]:other[i-3],b=stones[
 $('historyButton').hidden=!challengeDone;$('status').hidden=topView||challengeDone||!$('status').textContent;
 for(let i=0;i<5;i++){const slot=$('slot'+i),done=winSlots[i],active=i===streak&&!challengeDone;const hinted=done?done.hints>0:active&&currentHintUses>0;slot.classList.toggle('cleared',!!done);slot.classList.toggle('current',active);slot.classList.toggle('hinted',hinted);const label=hinted?(done?'<span class="slot-check">✓</span>':'')+'<span class="slot-hint">HINT</span>':done?'✓':String(i+1);if(slot.innerHTML!==label)slot.innerHTML=label;slot.setAttribute('aria-label',`${i+1}問目 ${done?'クリア':active?'挑戦中':'未挑戦'}${hinted?'・ヒント使用':''}`)}
 $('newChallenge').hidden=!challengeDone;$('hint').hidden=challengeDone;$('hint').disabled=topView||roundState!=='READY'||busy||challengeDone||(finished&&attemptCounted)||hintUsedThisAttempt;$('startRound').hidden=roundState!=='WAIT_START'||!puzzle||challengeDone;$('startRound').textContent=String(Math.min(5,streak+1)).replace(/[0-9]/g,d=>String.fromCharCode(d.charCodeAt(0)+65248))+'戦目：スタート';board.classList.toggle('waiting-start',roundState==='WAIT_START');
-$('retry').hidden=topView||!!favoriteSession&&finished&&attemptCounted||selected!==null||!canRetry();$('next').hidden=topView||!!favoriteSession||busy||challengeDone||selected!==null||!finished||(mode==='daily'&&!attemptCounted);$('boardTools').hidden=$('retry').hidden&&$('next').hidden;
+$('retry').hidden=topView||!!favoriteSession&&finished&&attemptCounted||selected!==null||!canRetry();$('next').hidden=topView||!!favoriteSession||busy||challengeDone||selected!==null||!finished||((mode==='daily'||won(other))&&!attemptCounted);$('boardTools').hidden=$('retry').hidden&&$('next').hidden;
 $('finishShare').hidden=topView||!challengeDone;$('finishShareLabel').textContent=resultLabel()+'をシェア ↗';$('newChallenge').textContent=mode==='daily'?'もう一度デイリーに挑戦する':'もう一度５連勝チャレンジをする';document.body.classList.toggle('top-view',topView);$('number').textContent='';$('number').hidden=true;$('helpButton').textContent=topView?'遊び方':'TOP';$('helpButton').setAttribute('aria-label',topView?'遊び方':'TOPに戻る');$('helpButton').setAttribute('aria-haspopup',topView?'dialog':'false');$('favoriteProblemName').hidden=!favoriteSession;$('favoriteFinishOverlay').hidden=!favoriteSession||!finished||!attemptCounted||busy||topView;$('favoriteNext').hidden=!favoriteNextItem();$('topResume').hidden=!topView||roundState==='WAIT_START'||!puzzle;$('resumeFromTop').disabled=busy;$('resumeFromTop').textContent=challengeDone?'結果を見る':'続きを遊ぶ';placeBoardTools();syncThinking();$('timer').textContent=timeString(challengeTime())}
 function status(s,cls=''){$('status').textContent=s;$('status').className='status '+cls;$('status').hidden=!s||challengeDone}
 function stopThinking(){if(thinkingSince!==null){thinkingTotal+=Math.max(0,performance.now()-thinkingSince);thinkingSince=null}}
@@ -127,7 +127,7 @@ setInterval(()=>{$('timer').textContent=timeString(challengeTime());updateModeLa
 function select(p){if(topView||roundState!=='READY'||anyPanelOpen()||busy||finished||!own.includes(p))return;unlock();startTimer();firstSelected=true;selected=selected===p?null:p;beep('tap');render()}
 function finish(ok,reason=''){
   stopThinking();finished=true;selected=null;
-  if(!favoriteSession&&!attemptCounted){total++;if(ok){correct++;streak++;attemptCounted=true;winSlots.push({hints:currentHintUses,id:puzzle.id});best=Math.max(best,streak);save('suberi-best',best)}else{mistakes++;if(mode!=='daily'){streak=0;winSlots=[]}}}
+  if(!favoriteSession&&!attemptCounted){total++;if(ok){correct++;streak++;attemptCounted=true;winSlots.push({hints:currentHintUses,id:puzzle.id});best=Math.max(best,streak);save('suberi-best',best)}else{mistakes++;if(mode!=='daily'&&!won(other)){streak=0;winSlots=[]}}}
   if(favoriteSession)attemptCounted=ok;
   elapsed=started?performance.now()-started:0;
   if(!favoriteSession&&streak>=5&&!challengeDone){challengeElapsed=challengeTime();challengeDone=true}saveDailyResult();
@@ -255,7 +255,7 @@ for(const [id,value] of [['historyPlain','plain'],['historyCats','cat'],['histor
 $('historyButton').onclick=openHistory;$('closeHistory').onclick=()=>$('historyDialog').close();$('saveAllBoards').onclick=()=>saveBoards(playedBoards.map(p=>displaySnapshot(p,historySkin)));
 $('hint').onclick=useHint;$('newChallenge').onclick=newChallenge;
 $('skipIntro').onclick=()=>{if(intro&&!anyPanelOpen())finishIntro()};$('startRound').onclick=startRound;
-$('sound').onclick=()=>{sound=!sound;save('suberi-sound',sound);if(!sound&&master)master.gain.setValueAtTime(0,audio.currentTime);unlock();$('sound').innerHTML=`♪ <span>${sound?'ON':'OFF'}</span>`;$('sound').setAttribute('aria-pressed',sound);$('sound').setAttribute('aria-label',`効果音を${sound?'オフ':'オン'}にする`);beep('tap')};$('plain').onclick=()=>setSkin('plain');$('cats').onclick=()=>setSkin('cat');$('emojis').onclick=()=>{if(skin==='emoji'){newEmojiPair();if(favoriteSession)favoriteView.emojiPair=emojiPairIndex}setSkin('emoji')};$('retry').onclick=()=>{if(canRetry())loadPuzzle(true)};$('next').onclick=()=>{if(puzzles.length&&!busy&&finished&&(mode!=='daily'||attemptCounted))loadPuzzle()};$('finishShareButton').onclick=openTweet;
+$('sound').onclick=()=>{sound=!sound;save('suberi-sound',sound);if(!sound&&master)master.gain.setValueAtTime(0,audio.currentTime);unlock();$('sound').innerHTML=`♪ <span>${sound?'ON':'OFF'}</span>`;$('sound').setAttribute('aria-pressed',sound);$('sound').setAttribute('aria-label',`効果音を${sound?'オフ':'オン'}にする`);beep('tap')};$('plain').onclick=()=>setSkin('plain');$('cats').onclick=()=>setSkin('cat');$('emojis').onclick=()=>{if(skin==='emoji'){newEmojiPair();if(favoriteSession)favoriteView.emojiPair=emojiPairIndex}setSkin('emoji')};$('retry').onclick=()=>{if(canRetry())loadPuzzle(true)};$('next').onclick=()=>{if(puzzles.length&&!busy&&finished&&(mode!=='daily'&&!won(other)||attemptCounted))loadPuzzle()};$('finishShareButton').onclick=openTweet;
 
 let panelReturnFocus=null;
 function showPanel(id,closeId,opener=null){stopThinking();cancelIntroForPanel();panelReturnFocus=opener||document.activeElement;$(id).showModal();$(closeId).focus()}
@@ -266,7 +266,7 @@ $('confirmMode').onclick=()=>{const next=pendingMode;$('modeDialog').close();if(
 $('helpButton').onclick=()=>topView?openHelp():goTop();$('dailyRecordsButton').onclick=openDailyRecords;$('dailyMode').onclick=()=>switchMode('daily');$('randomMode').onclick=()=>switchMode('random');
 const FAVORITES_STORAGE='suberi-favorites-v1';
 let favoriteSession=null,favoriteView=null,pendingDeleteKey=null,pendingDeleteButton=null,topView=true;
-function puzzleBankVersion(p){return p.id<=200?LEGACY_BANK_VERSION:BANK_VERSION}
+function puzzleBankVersion(p){return p.id<=200?LEGACY_BANK_VERSION:PUZZLE_BANK_VERSION}
 function favoriteKey(p){return puzzleBankVersion(p)+':'+p.id}
 function validFavorite(f){const p=f?.puzzle;if(!p||!Array.isArray(p.own)||!Array.isArray(p.other))return false;const positions=[...p.own,...p.other];return typeof f.key==='string'&&Number.isInteger(p.id)&&p.own.length===3&&p.other.length===3&&positions.every(n=>Number.isInteger(n)&&n>=0&&n<25)&&new Set(positions).size===6&&!won(p.own)&&!won(p.other)&&p.solution&&moves(p.own,p.other).some(m=>same(m,p.solution))}
 function readFavorites(){const data=read(FAVORITES_STORAGE,[]);return Array.isArray(data)?data.filter(validFavorite):[]}
