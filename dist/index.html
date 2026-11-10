@@ -26,7 +26,7 @@
     <button id="sound" class="icon" aria-label="効果音をオフにする" aria-pressed="true">♪ <span>ON</span></button>
   </header>
   <p class="subtitle"><a id="subtitleOfficial" href="https://www.neutreeko.net/index.htm">ニュートリーコ</a>のファンメイド、３手詰めチャレンジ</p>
-  <div class="top-tools"><button id="helpButton" class="help-button" aria-haspopup="dialog">遊び方</button><button id="dailyRecordsButton" class="daily-records-button" aria-label="デイリーの成績">成績</button><button id="favoritesButton" class="daily-records-button" aria-haspopup="dialog">お気に入り</button>      <div class="skins" role="group" aria-label="駒の見た目">
+  <div class="top-tools"><button id="helpButton" class="help-button" aria-haspopup="dialog">遊び方</button><button id="dailyRecordsButton" class="daily-records-button" aria-label="デイリーの成績">成績</button><button id="rankingButton" class="daily-records-button" aria-haspopup="dialog">ランキング</button><button id="favoritesButton" class="daily-records-button" aria-haspopup="dialog">お気に入り</button>      <div class="skins" role="group" aria-label="駒の見た目">
         <button id="plain" aria-pressed="true">石</button><button id="cats" aria-pressed="false">猫</button><button id="emojis" aria-pressed="false">絵文字</button>
       </div></div>
   <section class="game" aria-label="3手詰めパズル">
@@ -50,7 +50,7 @@
       </div>
       <div id="topResume" class="top-resume" hidden><button id="resumeFromTop">続きを遊ぶ</button></div><div id="favoriteFinishOverlay" class="favorite-finish-overlay" hidden><button id="favoriteAgain">やり直す</button><button id="favoriteNext">次の問題へ</button><button id="favoriteList">一覧に戻る</button></div>
       <button id="startRound" class="round-start" hidden>１戦目：スタート</button>
-      <div id="finishShare" class="finish-share" hidden><button id="finishShareButton"><span aria-hidden="true">𝕏</span> <span id="finishShareLabel">5連勝をシェア ↗</span></button><button id="historyButton" class="history-link" hidden>５試合の配置を見る・保存 / お気に入り</button></div>
+      <div id="finishShare" class="finish-share" hidden><span id="finishHintSummary"></span><button id="finishRankingButton" hidden>ランキングに載せる</button><button id="finishShareButton"><span aria-hidden="true">𝕏</span> <span id="finishShareLabel">5連勝をシェア ↗</span></button><button id="historyButton" class="history-link" hidden>５試合の配置を見る・保存 / お気に入り</button></div>
       <svg id="winLine" viewBox="0 0 500 500" aria-hidden="true"></svg>
     </div>
     <div id="toolsDock" class="tools-dock" hidden></div>
@@ -90,6 +90,21 @@
     <p id="favoritesNotice" hidden>この端末・このブラウザー内に保存されます（アカウントには紐づきません）。閲覧データの削除やプライベート閲覧の終了などで消えることがあります。別端末・別ブラウザーには同期されません。再プレイは通常の成績に含まれません。</p>
     <div id="favoritesList" class="favorite-list"></div><p id="favoritesStatus" role="status"></p>
   </dialog>
+  <dialog id="rankingDialog" aria-labelledby="rankingTitle">
+    <div class="history-heading"><h2 id="rankingTitle">デイリーランキング</h2><button id="closeRanking" type="button">閉じる</button></div>
+    <p id="rankingDate" class="ranking-date"></p>
+    <form id="rankingForm" hidden>
+      <strong id="rankingResultSummary"></strong>
+      <label for="rankingName">名前（英大文字3文字）</label>
+      <div class="ranking-entry"><input id="rankingName" type="text" minlength="3" maxlength="3" pattern="[A-Z]{3}" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABC" aria-describedby="rankingPrivacy" required><button id="rankingSubmit" type="submit" disabled>この記録を載せる</button></div>
+      <p id="rankingPrivacy">押すと、名前・タイム・ヒント使用回数をこのサイトのランキングに公開します。名前はこのブラウザーに記憶します。</p>
+    </form>
+    <p id="rankingStatus" role="status" aria-live="polite"></p>
+    <div class="ranking-toolbar"><span>同じブラウザーは1日1件、最速記録を掲載。</span><button id="rankingRefresh" type="button">再読み込み</button></div>
+    <p id="rankingLoadStatus" role="status" aria-live="polite"></p>
+    <div id="rankingList"></div>
+    <p class="ranking-note">気軽に遊ぶためのランキングです。ヒントありも同じタイム順で並びます。厳密な不正防止はしていません。ブラウザーのデータを消すと別の参加者として扱われます。</p>
+  </dialog>
   <dialog id="dailyRecordsDialog" aria-labelledby="dailyRecordsTitle">
     <div class="history-heading"><h2 id="dailyRecordsTitle">デイリーの成績</h2><button id="closeDailyRecords">閉じる</button></div>
     <p class="local-note">この端末・ブラウザに保存されます。全国ランキングではありません。</p>
@@ -105,5 +120,5 @@
     <p>Neutreeko 公式サイト（英語）を別タブで開きます。このゲームはそのまま残ります。</p>
     <div><button id="stayHere">ここに残る</button><button id="visitOfficial">本家を開く ↗</button></div>
   </dialog>
-</main><script src="app.js"></script></body></html>
+</main><script src="app.js"></script><script src="leaderboard.js"></script></body></html>
 
