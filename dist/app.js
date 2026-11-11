@@ -7,7 +7,7 @@ function won(a){const s=new Set(a);return a.some(p=>[[1,0],[0,1],[1,1],[-1,1]].s
 const same=(a,b)=>a.from===b.from&&a.to===b.to;
 const read=(k,f)=>{try{return JSON.parse(localStorage.getItem(k))??f}catch{return f}};
 const save=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch{}};
-let puzzles=[],order=[],index=0,puzzle,own=[],other=[],selected=null,phase=0,busy=false,finished=false,practice=false,started=0,elapsed=0,streak=0,total=0,correct=0,best=read('suberi-best',0),skin=['plain','cat','emoji'].includes(read('suberi-skin','plain'))?read('suberi-skin','plain'):'plain',sound=read('suberi-sound',true)!==false,audio,master,lastHover=0,token=0,attemptCounted=false,intro=false,introToken=0,hintUses=0,challengeStarted=0,challengeElapsed=0,challengeDone=false,emojiPairIndex=-1,firstSelected=false,confettiToken=0,winSlots=[],currentHintUses=0,playedBoards=[],currentBoard=null,hintPreview=false,hintUsedThisAttempt=false,mode=read('suberi-mode','daily')==='random'?'random':'daily',challengeDate='',thinkingTotal=0,thinkingSince=null,dailyRunId='',mistakes=0,lastCheckpoint=0,hiddenAt=0,roundState='WAIT_START',pendingMode=null;
+let puzzles=[],order=[],index=0,puzzle,own=[],other=[],selected=null,phase=0,busy=false,finished=false,practice=false,started=0,elapsed=0,streak=0,total=0,correct=0,best=read('suberi-best',0),skin=['plain','cat','emoji'].includes(read('suberi-skin','plain'))?read('suberi-skin','plain'):'plain',sound=read('suberi-sound',true)!==false,audio,master,lastHover=0,token=0,attemptCounted=false,intro=false,introToken=0,hintUses=0,challengeStarted=0,challengeElapsed=0,challengeDone=false,emojiPairIndex=-1,firstSelected=false,confettiToken=0,winSlots=[],currentHintUses=0,playedBoards=[],currentBoard=null,hintPreview=false,hintUsedThisAttempt=false,mode=read('suberi-mode','daily')==='random'?'random':'daily',challengeDate='',thinkingTotal=0,thinkingSince=null,dailyRunId='',mistakes=0,lastCheckpoint=0,hiddenAt=0,roundState='WAIT_START',pendingMode=null,dailyRoundEnds=[];
 // Versioned, canonical puzzle IDs keep daily selection stable across browsers and file ordering.
 const BANK_VERSION='neutreeko-mixed65-20261104-v3',PUZZLE_BANK_VERSION='neutreeko-mixed-20261104-v2',LEGACY_BANK_VERSION='neutreeko-200-20261022-v1',MIXED_DAILY_START='2026-11-04',DAILY_STORAGE='suberi-daily-results-v1';
 function jstDate(ms=Date.now()){return new Date(ms+9*60*60*1000).toISOString().slice(0,10)}
@@ -33,10 +33,17 @@ function replyChoice(list,a,b){if(mode!=='daily')return list[Math.floor(Math.ran
 function resultLabel(){return '5連勝'}
 function snapshotLabel(p){return p.mode==='daily'?`${p.date} · 問${p.round}`:`No. ${String(p.id).padStart(3,'0')}`}
 function readDailyRecords(){const data=read(DAILY_STORAGE,{});return data&&typeof data==='object'&&!Array.isArray(data)?data:{}}
+// Cumulative boundaries avoid per-round rounding drift; finalization includes retries
+// of an already-cleared puzzle until the user actually advances to the next one.
+function dailyRoundTimes(){
+  if(mode!=='daily'||!challengeDone||dailyRoundEnds.length!==5)return null;
+  let previous=0;const times=[];for(const end of dailyRoundEnds){if(!Number.isSafeInteger(end)||end<previous)return null;times.push(end-previous);previous=end}
+  return previous===Math.max(1,Math.round(challengeTime()))?times:null
+}
 function saveDailyResult(){
   if(favoriteSession||mode!=='daily'||!challengeDate||!dailyRunId||!puzzle)return;
   const records=readDailyRecords(),day=records[challengeDate]||{bank:bankVersionForDate(challengeDate),runs:[]};if(!Array.isArray(day.runs))day.runs=[];
-  const item={id:dailyRunId,bank:bankVersionForDate(challengeDate),completed:challengeDone,cleared:streak,ms:Math.round(challengeTime()),hints:hintUses,mistakes,updatedAt:Date.now()},at=day.runs.findIndex(r=>r.id===dailyRunId);if(at<0)day.runs.push(item);else day.runs[at]=item;day.runs=day.runs.slice(-20);records[challengeDate]=day;save(DAILY_STORAGE,records)
+  const item={id:dailyRunId,bank:bankVersionForDate(challengeDate),completed:challengeDone,cleared:streak,ms:Math.round(challengeTime()),hints:hintUses,mistakes,roundMs:dailyRoundTimes(),updatedAt:Date.now()},at=day.runs.findIndex(r=>r.id===dailyRunId);if(at<0)day.runs.push(item);else day.runs[at]=item;day.runs=day.runs.slice(-20);records[challengeDate]=day;save(DAILY_STORAGE,records)
 }
 function dailyRecordGroups(day){const runs=(day.runs||[]).filter(r=>r&&Number.isFinite(r.ms));return [...new Set(runs.map(r=>r.bank||LEGACY_BANK_VERSION))].map(bank=>({bank,runs:runs.filter(r=>(r.bank||LEGACY_BANK_VERSION)===bank)}))}
 function openDailyRecords(){
@@ -130,7 +137,7 @@ function finish(ok,reason=''){
   if(!favoriteSession&&!attemptCounted){total++;if(ok){correct++;streak++;attemptCounted=true;winSlots.push({hints:currentHintUses,id:puzzle.id});best=Math.max(best,streak);save('suberi-best',best)}else{mistakes++;if(mode!=='daily'&&!won(other)){streak=0;winSlots=[]}}}
   if(favoriteSession)attemptCounted=ok;
   elapsed=started?performance.now()-started:0;
-  if(!favoriteSession&&streak>=5&&!challengeDone){challengeElapsed=challengeTime();challengeDone=true}saveDailyResult();
+  if(!favoriteSession&&streak>=5&&!challengeDone){challengeElapsed=challengeTime();challengeDone=true;if(mode==='daily')dailyRoundEnds[4]=Math.max(1,Math.round(challengeElapsed))}saveDailyResult();
   beep(ok?(challengeDone?'champion':'win'):won(other)?'opponent-win':'fail');
   status(ok?(challengeDone?resultLabel()+'！':favoriteSession?'お気に入りの練習クリア！':practice?'もう一度クリア！':`正解！ あと${5-streak}${mode==='daily'?'問':'連勝'}`):won(other)?'':(reason||'3手目ではそろえられませんでした。もう一度！'),ok?'success':'error');
   if(ok||won(other)){celebrate(ok&&challengeDone);const a=[...(ok?own:other)].sort((a,b)=>a-b);$('winLine').innerHTML=`<line x1="${a[0]%5*100+50}" y1="${Math.floor(a[0]/5)*100+50}" x2="${a[2]%5*100+50}" y2="${Math.floor(a[2]/5)*100+50}"/>`}render()
@@ -175,6 +182,7 @@ function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random
 function loadPuzzle(retry=false,showIntro=!retry,keepHintLock=false){
   if(challengeDone)return;stopThinking();if(!keepHintLock)hintUsedThisAttempt=false;hintPreview=false;board.classList.remove('hint-demo');firstSelected=false;confettiToken++;$('confetti').innerHTML='';$('confetti').classList.remove('grand');board.classList.remove('grand-win');token++;introToken++;intro=false;board.classList.remove('introducing');board.classList.remove('intro-reset');
   if(retry){practice=favoriteSession?true:attemptCounted;if(favoriteSession)attemptCounted=false}else{
+    if(mode==='daily'&&!favoriteSession&&attemptCounted&&index>0)dailyRoundEnds[index-1]=Math.round(thinkingTotal);
     practice=false;attemptCounted=false;currentHintUses=0;
     if(index>=order.length){if(mode==='daily')return;order=randomOrder();index=0}
     puzzle=puzzles[order[index++]];newEmojiPair();
@@ -192,7 +200,7 @@ async function useHint(){
 }
 function newChallenge(){
   if(favoriteSession)return;topView=true;
-  stopThinking();saveDailyResult();token++;introToken++;challengeDone=false;thinkingTotal=0;thinkingSince=null;challengeStarted=0;challengeElapsed=0;hintUses=0;currentHintUses=0;winSlots=[];playedBoards=[];currentBoard=null;streak=0;total=0;correct=0;mistakes=0;puzzle=null;practice=false;attemptCounted=false;
+  stopThinking();saveDailyResult();token++;introToken++;challengeDone=false;thinkingTotal=0;thinkingSince=null;challengeStarted=0;challengeElapsed=0;hintUses=0;currentHintUses=0;winSlots=[];dailyRoundEnds=[];playedBoards=[];currentBoard=null;streak=0;total=0;correct=0;mistakes=0;puzzle=null;practice=false;attemptCounted=false;
   challengeDate=mode==='daily'?jstDate():'';dailyRunId=Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);order=mode==='daily'?dailyOrder(challengeDate):randomOrder();index=0;if(puzzles.length)loadPuzzle()
 }
 // Only immutable puzzle-start positions are exported; no solutions or move markers.
@@ -306,13 +314,13 @@ function openFavorites(){ensureFavoriteView();topView=false;resetDeleteConfirmat
 function openFavoriteReplay(item){
  if(favoriteSession||busy||intro){$('favoritesStatus').textContent='駒の動きが終わってから再プレイしてください。';return}
  ensureFavoriteView();stopThinking();saveDailyResult();
- favoriteSession={state:{skin,order,index,puzzle,own,other,selected,phase,busy,finished,practice,started,elapsed,streak,total,correct,best,attemptCounted,intro,hintUses,challengeStarted,challengeElapsed,challengeDone,emojiPairIndex,firstSelected,winSlots,currentHintUses,playedBoards,currentBoard,hintPreview,hintUsedThisAttempt,mode,challengeDate,thinkingTotal,thinkingSince,dailyRunId,mistakes,lastCheckpoint,hiddenAt,roundState,pendingMode},status:$('status').textContent,statusClass:$('status').className,winLine:$('winLine').innerHTML};
+ favoriteSession={state:{skin,order,index,puzzle,own,other,selected,phase,busy,finished,practice,started,elapsed,streak,total,correct,best,attemptCounted,intro,hintUses,challengeStarted,challengeElapsed,challengeDone,emojiPairIndex,firstSelected,winSlots,currentHintUses,playedBoards,currentBoard,hintPreview,hintUsedThisAttempt,mode,challengeDate,thinkingTotal,thinkingSince,dailyRunId,mistakes,lastCheckpoint,hiddenAt,roundState,pendingMode,dailyRoundEnds},status:$('status').textContent,statusClass:$('status').className,winLine:$('winLine').innerHTML};
  $('favoritesDialog').close();loadFavoriteReplay(item)
 }
 function loadFavoriteReplay(item){
  if(!favoriteSession)return;resetDeleteConfirmation();hideFavoriteNotice();stopThinking();
  favoriteSession.key=item.key||favoriteKey(item.puzzle);favoriteSession.label=item.label||'お気に入りの問題';
- token++;introToken++;puzzle=item.puzzle;order=[];index=0;own=[...puzzle.own];other=[...puzzle.other];selected=null;phase=0;busy=false;finished=false;practice=true;started=0;elapsed=0;streak=0;total=0;correct=0;attemptCounted=false;intro=false;hintUses=0;challengeStarted=0;challengeElapsed=0;challengeDone=false;firstSelected=false;winSlots=[];currentHintUses=0;playedBoards=[];currentBoard=null;hintPreview=false;hintUsedThisAttempt=false;thinkingTotal=0;thinkingSince=null;mistakes=0;roundState='WAIT_START';pendingMode=null;
+ token++;introToken++;puzzle=item.puzzle;order=[];index=0;own=[...puzzle.own];other=[...puzzle.other];selected=null;phase=0;busy=false;finished=false;practice=true;started=0;elapsed=0;streak=0;total=0;correct=0;attemptCounted=false;intro=false;hintUses=0;challengeStarted=0;challengeElapsed=0;challengeDone=false;firstSelected=false;winSlots=[];currentHintUses=0;playedBoards=[];currentBoard=null;hintPreview=false;hintUsedThisAttempt=false;thinkingTotal=0;thinkingSince=null;mistakes=0;roundState='WAIT_START';pendingMode=null;dailyRoundEnds=[];
  skin=favoriteView.skin;emojiPairIndex=favoriteView.emojiPair;topView=false;
  $('favoriteProblemName').textContent=favoriteSession.label;$('favoriteProblemName').setAttribute('title',favoriteSession.label);
  $('favoritePracticeBanner').hidden=false;document.body.classList.add('favorite-practice');paintSkin();loadPuzzle(true,true);$('startRound').focus()
@@ -320,7 +328,7 @@ function loadFavoriteReplay(item){
 function nextFavoriteReplay(){if(!favoriteSession||!finished||!attemptCounted||busy)return;const next=favoriteNextItem();if(next)loadFavoriteReplay(next)}
 function leaveFavoriteReplay(openList=true){
  if(!favoriteSession)return;stopThinking();token++;introToken++;confettiToken++;$('confetti').innerHTML='';$('confetti').classList.remove('grand');board.classList.remove('grand-win','introducing','intro-reset','hint-demo');
- const saved=favoriteSession;favoriteSession=null;({skin,order,index,puzzle,own,other,selected,phase,busy,finished,practice,started,elapsed,streak,total,correct,best,attemptCounted,intro,hintUses,challengeStarted,challengeElapsed,challengeDone,emojiPairIndex,firstSelected,winSlots,currentHintUses,playedBoards,currentBoard,hintPreview,hintUsedThisAttempt,mode,challengeDate,thinkingTotal,thinkingSince,dailyRunId,mistakes,lastCheckpoint,hiddenAt,roundState,pendingMode}=saved.state);thinkingSince=null;
+ const saved=favoriteSession;favoriteSession=null;({skin,order,index,puzzle,own,other,selected,phase,busy,finished,practice,started,elapsed,streak,total,correct,best,attemptCounted,intro,hintUses,challengeStarted,challengeElapsed,challengeDone,emojiPairIndex,firstSelected,winSlots,currentHintUses,playedBoards,currentBoard,hintPreview,hintUsedThisAttempt,mode,challengeDate,thinkingTotal,thinkingSince,dailyRunId,mistakes,lastCheckpoint,hiddenAt,roundState,pendingMode,dailyRoundEnds}=saved.state);thinkingSince=null;
  $('favoritePracticeBanner').hidden=true;$('favoriteFinishOverlay').hidden=true;document.body.classList.remove('favorite-practice');$('introControls').hidden=true;
  $('winLine').innerHTML=saved.winLine;paintSkin();status(saved.status);$('status').className=saved.statusClass;if(openList)openFavorites();render()
 }

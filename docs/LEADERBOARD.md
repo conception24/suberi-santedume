@@ -4,13 +4,13 @@
 
 This is a casual, self-reported daily-five leaderboard, not an anti-cheat system. Times, completion and hint counts are browser reports. A user can change local data or browser ID, so the limits below discourage accidental/repeated submissions, not determined abuse.
 
-The public API exposes only rank, uppercase one-to-three-letter name, thinking time in milliseconds, and hint count. The UI must disclose that the name, time and hints become public before submission. A browser generates and remembers a UUID v4 `clientId`; the server hashes it with the day and question-bank version before storage. Raw browser IDs, IP addresses, email and accounts are not stored by this application. Cloudflare platform logs/analytics are separate from this application. Clearing browser data creates a different identity. The browser remembers the entered name locally.
+The public API exposes only rank, uppercase one-to-three-letter name, total thinking time in milliseconds, optional five-round thinking times, and hint count. The UI must disclose that the name, total time, five-round times (when recorded) and hints become public before submission. A browser generates and remembers a UUID v4 `clientId`; the server hashes it with the day and question-bank version before storage. Raw browser IDs, IP addresses, email and accounts are not stored by this application. Cloudflare platform logs/analytics are separate from this application. Clearing browser data creates a different identity. The browser remembers the entered name locally.
 
 ## API contract
 
 GET `/api/leaderboard?date=YYYY-MM-DD&bank=neutreeko-mixed65-20261104-v3`
 
-Success (200): `{ "entries": [{ "rank": 1, "name": "ABC", "ms": 12345, "hints": 0 }], "date": "YYYY-MM-DD", "bank": "neutreeko-mixed65-20261104-v3" }`.
+Success (200): `{ "entries": [{ "rank": 1, "name": "ABC", "ms": 12345, "hints": 0, "roundMs": [2000, 2000, 2000, 2000, 4345] }], "roundBests": [2000, 2000, 2000, 2000, 4345], "date": "YYYY-MM-DD", "bank": "neutreeko-mixed65-20261104-v3" }`.
 
 Valid calendar dates are accepted for reads. Returns at most 100 entries ordered by time, then record timestamp, then the internal hash. Equal times receive consecutive ranks with a deterministic tie-break, not joint ranks. Empty leaderboard returns `entries: []`.
 
@@ -20,13 +20,14 @@ POST `/api/leaderboard` with `Content-Type: application/json`, a same-origin `Or
 
 - `name`: one to three ASCII uppercase letters. Frontend converts lowercase to uppercase; backend accepts only the normalized uppercase value.
 - `ms`: integer 1–86,400,000; `hints`: integer 0–999.
+- `roundMs` (optional): array of exactly five nonnegative safe integers, each no greater than 86,400,000, whose sum equals `ms`. Missing or null remains compatible with older clients and is stored as null. It represents this same complete run, never a combination of personal-best rounds.
 - `clientId`: UUID v4, case insensitive. Use `crypto.randomUUID()` and persist in localStorage.
 - `runId`: 8–80 ASCII letters, digits, underscores or hyphens. Generate once per completed daily-five run; retain it for retries. UUID v4 is suitable.
 - `date`: start date of the daily set, either today or yesterday in JST. Future, older, and invalid dates rejected.
 - `completed`: numeric 5. `bank`: exact version above.
 - Maximum body size 2048 bytes, checked while streaming. No CORS permission is supplied. The same-origin restriction is not an authentication/anti-bot system.
 
-Success (200): `{ "saved": true, "improved": true, "entry": { "rank": 1, "name": "ABC", "ms": 12345, "hints": 0 }, "date": "YYYY-MM-DD", "bank": "neutreeko-mixed65-20261104-v3" }`.
+Success (200): `{ "saved": true, "improved": true, "entry": { "rank": 1, "name": "ABC", "ms": 12345, "hints": 0, "roundMs": null }, "date": "YYYY-MM-DD", "bank": "neutreeko-mixed65-20261104-v3" }`.
 
 There is one best entry per browser/day/bank. First submission or strictly faster time sets `improved: true`. A tie/slower run keeps the earlier name/time/hints. A retry with the same run ID uses its original persisted payload, even if the request changed. `entry` always describes the browser's current best and may have rank greater than 100. D1 batch transactions and SQL conditional UPSERT prevent concurrent slower requests from overwriting a faster one.
 
@@ -38,7 +39,7 @@ Errors: `{ "error": "Japanese user-facing message" }`, with 400 invalid data/dat
 
 Requires Cloudflare account authorization, an approved D1 database and the existing Pages project. There is no API key embedded in the frontend and no need for paid features. Confirm current Cloudflare plan quotas before enabling.
 
-1. Create a D1 database, and apply `migrations/0001_leaderboard.sql`, then `migrations/0002_short_names.sql` to it with the Cloudflare D1 SQL console or authorized Wrangler migration command. SQL file uses `CREATE ... IF NOT EXISTS` and is safe to reapply to its initial schema.
+1. Create a D1 database, and apply `migrations/0001_leaderboard.sql`, then `migrations/0002_short_names.sql` and `migrations/0003_round_times.sql` to it with the Cloudflare D1 SQL console or authorized Wrangler migration command. SQL file uses `CREATE ... IF NOT EXISTS` and is safe to reapply to its initial schema.
 2. Bind this database in the existing Pages project's production settings with the exact name `LEADERBOARD_DB`. Use a separate test database for previews, not the production database.
 3. Deploy the project with the root `functions/api/leaderboard.js` included and `dist/` as the public static output. A static-only GitHub Pages or `python -m http.server` preview cannot run the API. Cloudflare dashboard drag-and-drop static uploads do not build the Functions directory; use Git-integrated Pages or an authorized Wrangler Pages deployment that includes the root Functions directory.
 4. Keep `migrations/`, `docs/`, `scripts/`, package metadata, backups and database exports OUTSIDE the public static output. Existing hosting configured to expose the repository root must be switched/verified before publishing this backend. This avoids exposing source/support files as public assets.
@@ -96,3 +97,37 @@ At the pre-deploy checkpoint, v1/v2 counts and all fields should match unless an
 Rollback: before any v2-only writes, keeping/restoring the prior application leaves v1 untouched. Once new short-name records exist, restoring the old v1 API would hide these records and is NOT a complete rollback. Prefer a forward fix or revert the UI while retaining v2-capable API access. Preserve both versions and any export until a deliberate reconciliation is verified. Do not drop v2 or restore an earlier snapshot over new scores. The triggers only mirror old-to-new, not new-to-old, because v1 cannot store short names.
 
 Added tests verify 1/2/3-letter saves, malformed/empty/non-ASCII names, exact backfill of original entries/runs, old-deployment writes after migration, repeatable migration without clobbering a faster short-name record, and transaction rollback with original data intact. These are local SQLite tests; live D1 execution still requires verification.
+
+
+## Five-round time extension
+
+GET now returns `entries[].roundMs` as an integer array or null, and `roundBests` as an array of five integer minima or null if no entry has a breakdown. POST success includes `entry.roundMs` with the saved total-best record. An empty board or a board containing only legacy records has `roundBests: null`. The response never exposes the internal JSON column or identifiers.
+
+Rank remains based exclusively on the total `ms`. Each browser contributes one best-total row. `roundBests` considers all such rows for the same date and bank, not just the displayed top 100. It does NOT consider slower attempts stored in the runs table. Therefore improving one's total may replace a faster individual round, and a per-round minimum can increase. This is intentional: the emphasis means “best round among participants' best-total records”, not “all-time round personal best”. Old records lacking breakdowns are excluded from minima; do not invent their times from the total.
+
+Compare the exact integer milliseconds for highlighting, highlighting every equal minimum. Rounded display seconds can appear equal even when exact milliseconds differ. An individual-round leader can be outside the top 100, in which case no displayed row necessarily has that minimum. The API obtains the top rows and minima within one transactional batch for a consistent read snapshot.
+
+A duplicate run ID keeps the original breakdown as well as the original time/name/hints. Tied/slower totals do not replace any part of the best row. A faster legacy client submission correctly replaces the total best with `roundMs: null`. Existing old records are not retroactively filled in by resending a run ID.
+
+### Migration and rollback
+
+Apply `migrations/0003_round_times.sql` through an authorized D1 migration transaction before deploying the new API. This only adds nullable `round_ms` columns to both v2 tables and two compatibility triggers. It leaves every existing record and the four v1-to-v2 mirror triggers intact. Old records read as null, with no data backfill or deletion. Verify a private export/restore point first and verify existing row counts/fields after applying.
+
+Unlike migration 0002, this migration is NOT blindly rerunnable: SQLite has no `ADD COLUMN IF NOT EXISTS`. Prefer the D1 migrations runner and its migration tracking. If execution is uncertain, inspect `PRAGMA table_info(leaderboard_entries_v2)`, `PRAGMA table_info(leaderboard_runs_v2)`, and the two named trigger definitions before deciding how to complete missing statements. Do not simply replay a partially completed script. D1 rejects explicit SQL BEGIN/COMMIT; use the platform's transaction-capable migration runner/batch. Keep production checks read-only; no fabricated leaderboard rows.
+
+DB CHECK constraints reject malformed JSON, wrong array shape, non-integer/negative/out-of-range elements. Sum equality is enforced at the API boundary. It is intentionally not a database CHECK, because the preceding name-fix API updates `ms` without supplying `round_ms`. The AFTER UPDATE compatibility trigger clears the breakdown whenever the total changes while its JSON is unchanged. This also handles old-to-v2 mirror updates without fabricating a mismatched breakdown. New API updates supply the matching breakdown atomically.
+
+Rollback to the prior name-fix API remains possible with the migration left in place: its explicit-column inserts/updates work and ignore the added nullable columns. Its changed-total updates clear obsolete breakdowns. Do not drop columns or tables to roll back application code. The new API needs migration 0003; deploying it before the migration causes safe 503 responses.
+
+Read-only post-migration checks:
+
+```sql
+PRAGMA table_info(leaderboard_entries_v2);
+PRAGMA table_info(leaderboard_runs_v2);
+SELECT name FROM sqlite_master WHERE type='trigger' AND name IN (
+  'leaderboard_entries_clear_stale_rounds', 'leaderboard_runs_clear_stale_rounds');
+SELECT COUNT(*) AS records, COUNT(round_ms) AS with_breakdown FROM leaderboard_entries_v2;
+SELECT COUNT(*) AS records, COUNT(round_ms) AS with_breakdown FROM leaderboard_runs_v2;
+```
+
+Immediately after first migration (before new feature traffic), `with_breakdown` must be zero and record counts must match the verified pre-migration counts. Tests cover old/null posts, exact five-item validation, zero-time rounds, immutable duplicate payloads, faster/slower runs, all-participant minima beyond rank 100, ties, original rows/mirror triggers, and old-style SQL updates after migration. Execute `node --test scripts/test-leaderboard.cjs` locally; live Cloudflare verification remains a separate deployment step.

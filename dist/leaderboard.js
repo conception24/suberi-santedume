@@ -11,7 +11,7 @@ function rankingClientId(){
 }
 function currentRankingResult(){
   if(favoriteSession||mode!=='daily'||!challengeDone||streak!==5)return null;
-  return {date:challengeDate,bank:bankVersionForDate(challengeDate),ms:Math.max(1,Math.round(challengeTime())),hints:hintUses,runId:dailyRunId,completed:5};
+  return {date:challengeDate,bank:bankVersionForDate(challengeDate),ms:Math.max(1,Math.round(challengeTime())),hints:hintUses,runId:dailyRunId,completed:5,roundMs:dailyRoundTimes()};
 }
 function syncLeaderboardResult(){
   const eligible=!!currentRankingResult();$('finishRankingButton').hidden=!eligible;
@@ -34,7 +34,7 @@ async function rankingRequest(url,options={}){
   }catch(error){if(error.name==='AbortError')throw Error('通信がタイムアウトしました。もう一度お試しください。');throw error}
   finally{clearTimeout(timeout)}
 }
-function showRankingEntries(entries){
+function showRankingEntries(entries,roundBests=null){
   $('rankingList').innerHTML='';
   if(!entries.length){const p=document.createElement('p');p.textContent='まだ登録がありません。今日の5問をクリアして、最初の記録を載せよう。';$('rankingList').append(p);return}
   const table=document.createElement('table');table.className='ranking-table';
@@ -42,7 +42,24 @@ function showRankingEntries(entries){
   const head=document.createElement('thead'),hr=document.createElement('tr');
   for(const label of ['順位','名前','タイム','ヒント']){const th=document.createElement('th');th.textContent=label;th.setAttribute('scope','col');hr.append(th)}head.append(hr);table.append(head);
   const body=document.createElement('tbody');
-  for(const item of entries){const tr=document.createElement('tr');for(const value of [item.rank,item.name,rankingSeconds(item.ms)+'秒',item.hints?item.hints+'回使用':'なし']){const td=document.createElement('td');td.textContent=String(value);tr.append(td)}if(item.hints)tr.className='ranking-hinted';body.append(tr)}
+  for(const item of entries){
+    const tr=document.createElement('tr');
+    for(const value of [item.rank,item.name,rankingSeconds(item.ms)+'秒',item.hints?item.hints+'回使用':'なし']){const td=document.createElement('td');td.textContent=String(value);tr.append(td)}
+    if(item.hints)tr.className='ranking-hinted';body.append(tr);
+    const detail=document.createElement('tr');detail.className='ranking-round-row';const cell=document.createElement('td');cell.setAttribute('colspan','4');
+    const splits=document.createElement('div');splits.className='ranking-rounds';splits.setAttribute('aria-label',item.name+' の各問題タイム');
+    for(let i=0;i<5;i++){
+      const ms=Array.isArray(item.roundMs)?item.roundMs[i]:null,known=Number.isSafeInteger(ms)&&ms>=0;
+      const fastest=known&&Array.isArray(roundBests)&&ms===roundBests[i];
+      const part=document.createElement('div');part.className='ranking-round'+(fastest?' ranking-round-best':'');
+      const label=document.createElement('span');label.textContent='問'+(i+1);
+      const value=document.createElement('strong');value.textContent=known?rankingSeconds(ms)+'秒':'—';
+      part.append(label);part.append(value);
+      if(fastest){const badge=document.createElement('small');badge.textContent='★ 最速';part.append(badge)}
+      part.setAttribute('aria-label','問'+(i+1)+(known?' '+rankingSeconds(ms)+'秒':' 内訳なし')+(fastest?'・この問題の最速':''));splits.append(part)
+    }
+    cell.append(splits);detail.append(cell);body.append(detail)
+  }
   table.append(body);$('rankingList').append(table);
 }
 async function loadRanking(){
@@ -50,7 +67,7 @@ async function loadRanking(){
   $('rankingLoadStatus').textContent='ランキングを読み込み中…';$('rankingRefresh').disabled=true;$('rankingList').innerHTML='';
   try{const data=await rankingRequest('/api/leaderboard?date='+encodeURIComponent(date)+'&bank='+encodeURIComponent(bank));if(request!==rankRequest)return;
     if(!Array.isArray(data.entries))throw Error('ランキングを読み込めませんでした。');
-    showRankingEntries(data.entries);$('rankingLoadStatus').textContent=data.entries.length?'タイム順 · 上位100件':'';
+    showRankingEntries(data.entries,data.roundBests);$('rankingLoadStatus').textContent=data.entries.length?'合計タイム順 · 上位100件':'';
   }catch(error){if(request===rankRequest)$('rankingLoadStatus').textContent=error.message||'読み込みに失敗しました。再試行してください。'}
   finally{if(request===rankRequest)$('rankingRefresh').disabled=false}
 }

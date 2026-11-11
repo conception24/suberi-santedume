@@ -9,7 +9,7 @@
     "configure:url": "node scripts/configure-public-url.cjs",
     "cover": "node scripts/create-social-card.cjs",
     "sync:root": "node scripts/sync-root.cjs",
-    "test:leaderboard": "node --test scripts/test-leaderboard.cjs && node scripts/test-leaderboard-ui.cjs"
+    "test:leaderboard": "node --test scripts/test-leaderboard.cjs && node scripts/test-leaderboard-ui.cjs && node scripts/test-round-times.cjs"
   },
   "devDependencies": {
     "@napi-rs/canvas": "0.1.100"

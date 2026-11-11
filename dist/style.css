@@ -214,3 +214,13 @@ footer{font-size:12px}.attribution{font-size:13px}.note{font-size:12px!important
 .ranking-hinted td:last-child{color:#af245d;font-weight:800}
 #rankingDialog .ranking-note{font-size:12px;color:#69576d;border-top:1px solid #d9cce3;padding-top:12px}
 @media(max-width:400px){#rankingDialog{padding:14px}#rankingDialog h2{font-size:17px}#rankingName{width:85px}#rankingSubmit{font-size:13px}.ranking-table th,.ranking-table td{padding-inline:3px;font-size:12px}#finishRankingButton{font-size:14px;min-height:44px}}
+
+/* Five compact splits keep total-time order readable even on a phone. */
+#rankingDialog .ranking-split-legend{font-size:11px;color:#69576d}
+.ranking-table .ranking-round-row td{padding:0 4px 14px;border-bottom:2px solid #d9cce3}
+.ranking-rounds{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;text-align:center}
+.ranking-round{display:flex;flex-direction:column;gap:3px;min-width:0;padding:6px 2px;border:1px solid #e1d6e6;border-radius:7px;background:#f8f4fb;font-size:10px;color:#69576d}
+.ranking-round strong{font-size:12px;white-space:nowrap;color:var(--ink)}
+.ranking-round-best{border-color:#ad7500;background:#fff0a3}
+.ranking-round-best small{font-size:10px;font-weight:900;color:#704800}
+@media(max-width:400px){.ranking-round strong{font-size:11px}.ranking-rounds{gap:3px}.ranking-round{padding-inline:1px}}

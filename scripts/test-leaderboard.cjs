@@ -11,6 +11,7 @@ function database() {
   const sqlite = new DatabaseSync(':memory:');
   sqlite.exec(fs.readFileSync(path.join(root, 'migrations/0001_leaderboard.sql'), 'utf8'));
   sqlite.exec(fs.readFileSync(path.join(root, 'migrations/0002_short_names.sql'), 'utf8'));
+  sqlite.exec(fs.readFileSync(path.join(root, 'migrations/0003_round_times.sql'), 'utf8'));
   const db = {
     prepare(sql) { return {bind(...args) {return {all: async () => ({results: sqlite.prepare(sql).all(...args)})};}}; },
     async batch(statements) {
@@ -38,7 +39,7 @@ test('empty, first, duplicate, slower, improved; no private ids', async () => {
   assert.deepEqual((await call('GET')).data.entries, []);
   const first = await call('POST',body);
   assert.equal(first.status,200); assert.equal(first.data.improved,true);
-  assert.deepEqual(first.data.entry,{rank:1,name:'ABC',ms:12000,hints:0});
+  assert.deepEqual(first.data.entry,{rank:1,name:'ABC',ms:12000,hints:0,roundMs:null});
   const duplicate = await call('POST',{...body,name:'XYZ',ms:1,hints:4});
   assert.equal(duplicate.data.improved,false); assert.deepEqual(duplicate.data.entry,first.data.entry);
   assert.equal((await call('POST',{...body,runId:randomUUID(),ms:13000,name:'DEF',hints:1})).data.improved,false);
@@ -46,13 +47,13 @@ test('empty, first, duplicate, slower, improved; no private ids', async () => {
   assert.equal(better.data.improved,true); assert.equal(better.data.entry.name,'XYZ'); assert.equal(better.data.entry.hints,2);
   const publicResult = await call('GET');
   assert.equal(publicResult.headers.get('Cache-Control'),'no-store');
-  assert.deepEqual(Object.keys(publicResult.data.entries[0]).sort(),['hints','ms','name','rank']);
+  assert.deepEqual(Object.keys(publicResult.data.entries[0]).sort(),['hints','ms','name','rank','roundMs']);
   assert.equal(db.sqlite.prepare('SELECT COUNT(*) AS n FROM leaderboard_entries_v2').get().n,1);
   assert.ok(!JSON.stringify(publicResult.data).includes(body.clientId));
 });
 test('ranking orders time, ties stable, only 100 entries', async () => {
   const {body,call,db} = await setup();
-  for(let i=0;i<105;i++) db.sqlite.prepare('INSERT INTO leaderboard_entries_v2 VALUES (?,?,?,?,?,?,?)').run(body.date,bank,String(i).padStart(64,'0'),'ABC',100+i,0,i);
+  for(let i=0;i<105;i++) db.sqlite.prepare('INSERT INTO leaderboard_entries_v2 (date,bank,client_hash,name,ms,hints,created_at) VALUES (?,?,?,?,?,?,?)').run(body.date,bank,String(i).padStart(64,'0'),'ABC',100+i,0,i);
   const entries=(await call('GET')).data.entries;
   assert.equal(entries.length,100); assert.equal(entries[0].ms,100); assert.equal(entries[99].rank,100);
   const result=await call('POST',{...body,ms:100});
@@ -90,8 +91,8 @@ test('database absence/failure is a safe Japanese 503',async()=>{
 });
 test('SQLite constraints reject invalid public values',async()=>{
   const {body,db}=await setup();
-  assert.throws(()=>db.sqlite.prepare('INSERT INTO leaderboard_entries_v2 VALUES (?,?,?,?,?,?,?)').run(body.date,bank,'a'.repeat(64),'aBC',1,0,0));
-  assert.throws(()=>db.sqlite.prepare('INSERT INTO leaderboard_entries_v2 VALUES (?,?,?,?,?,?,?)').run(body.date,bank,'a'.repeat(64),'ABC',1,-1,0));
+  assert.throws(()=>db.sqlite.prepare('INSERT INTO leaderboard_entries_v2 (date,bank,client_hash,name,ms,hints,created_at) VALUES (?,?,?,?,?,?,?)').run(body.date,bank,'a'.repeat(64),'aBC',1,0,0));
+  assert.throws(()=>db.sqlite.prepare('INSERT INTO leaderboard_entries_v2 (date,bank,client_hash,name,ms,hints,created_at) VALUES (?,?,?,?,?,?,?)').run(body.date,bank,'a'.repeat(64),'ABC',1,-1,0));
 });
 
 test('one, two and three uppercase characters save; other characters rejected', async () => {
@@ -135,4 +136,83 @@ test('migration transaction rollback leaves original data intact',()=>{
   catch {sqlite.exec('ROLLBACK');}
   assert.deepEqual(sqlite.prepare('SELECT * FROM leaderboard_entries').all(),before);
   assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE name LIKE '%_v2' OR type='trigger'").get().n,0);
+});
+
+test('round times validate and persist with the original run and total best', async()=>{
+  const {body,call}=await setup();
+  const rounds=[0,1000,2000,3000,6000];
+  let res=await call('POST',{...body,roundMs:rounds});
+  assert.equal(res.status,200);assert.deepEqual(res.data.entry.roundMs,rounds);
+  res=await call('POST',{...body,roundMs:[1000,1000,1000,1000,8000]});
+  assert.equal(res.data.improved,false);assert.deepEqual(res.data.entry.roundMs,rounds);
+  res=await call('POST',{...body,runId:randomUUID(),ms:13000,roundMs:[1,1,1,1,12996]});
+  assert.equal(res.data.improved,false);assert.deepEqual(res.data.entry.roundMs,rounds);
+  assert.deepEqual((await call('GET')).data.roundBests,rounds);
+  res=await call('POST',{...body,runId:randomUUID(),ms:11000,roundMs:[1000,1000,1000,1000,7000]});
+  assert.equal(res.data.improved,true);assert.deepEqual(res.data.entry.roundMs,[1000,1000,1000,1000,7000]);
+  res=await call('POST',{...body,runId:randomUUID(),ms:10000});
+  assert.equal(res.data.improved,true);assert.equal(res.data.entry.roundMs,null);
+  assert.equal((await call('GET')).data.roundBests,null);
+});
+test('optional breakdown accepts old clients/null and rejects invalid arrays',async()=>{
+  const {body,call,api}=await setup();
+  assert.equal((await call('GET')).data.roundBests,null);
+  for(const roundMs of [undefined,null]) {
+    const res=await call('POST',{...body,clientId:randomUUID(),roundMs});
+    assert.equal(res.status,200);assert.equal(res.data.entry.roundMs,null);
+  }
+  for(const roundMs of [[],[1,2,3,4],[1,2,3,4,5,6],[1,2,3,4,5],[-1,1,0,0,12000],[0.5,0.5,0,0,11999],[null,0,0,0,12000],['0',0,0,0,12000],{},'[]',[0,0,0,0,86400001]])
+    assert.equal((await call('POST',{...body,roundMs})).status,400,JSON.stringify(roundMs));
+  assert.equal(api.validateSubmission({...body,roundMs:[NaN,0,0,0,12000]}),false);
+  assert.equal(api.validateSubmission({...body,roundMs:new Array(5)}),false);
+});
+test('round minima include all participants, ties and day/bank scoping',async()=>{
+  const {body,call,db}=await setup();
+  const insert=db.sqlite.prepare('INSERT INTO leaderboard_entries_v2 (date,bank,client_hash,name,ms,hints,created_at,round_ms) VALUES (?,?,?,?,?,?,?,?)');
+  for(let i=0;i<101;i++) insert.run(body.date,bank,String(i).padStart(64,'0'),'ABC',100+i,0,i,JSON.stringify([10,20,20,20,30+i]));
+  insert.run(body.date,bank,'z'.repeat(64),'Z',1000,0,1000,JSON.stringify([1,2,3,4,990]));
+  insert.run('2000-01-01',bank,'z'.repeat(64),'Z',1,0,1000,JSON.stringify([0,0,0,0,1]));
+  const res=await call('GET');assert.equal(res.status,200);assert.equal(res.data.entries.length,100);
+  assert.deepEqual(res.data.roundBests,[1,2,3,4,30]);
+  assert.ok(res.data.entries.every(e=>e.roundMs[0]!==1));
+  assert.ok(res.data.entries.filter(e=>e.roundMs[1]===20).length>1);
+  // Exact milliseconds, not displayed seconds, determine the aggregate minimum.
+  insert.run(body.date,bank,'y'.repeat(64),'Y',2000,0,1001,JSON.stringify([1,2,3,4,1990]));
+  assert.deepEqual((await call('GET')).data.roundBests,[1,2,3,4,30]);
+});
+test('round migration retains rows/mirror triggers and old SQL writes remain compatible',()=>{
+  const sql=new DatabaseSync(':memory:');
+  for(const file of ['0001_leaderboard.sql','0002_short_names.sql'])sql.exec(fs.readFileSync(path.join(root,'migrations',file),'utf8'));
+  const row=['2026-11-11',bank,'a'.repeat(64),'ABC',1000,2,123];
+  sql.prepare('INSERT INTO leaderboard_entries VALUES (?,?,?,?,?,?,?)').run(...row);
+  sql.prepare('INSERT INTO leaderboard_runs VALUES (?,?,?,?,?,?,?,?)').run(...row.slice(0,3),'original-run',...row.slice(3));
+  const before=sql.prepare('SELECT * FROM leaderboard_entries_v2').all();
+  const triggers=sql.prepare("SELECT name,sql FROM sqlite_master WHERE type='trigger' ORDER BY name").all();
+  sql.exec('BEGIN');sql.exec(fs.readFileSync(path.join(root,'migrations/0003_round_times.sql'),'utf8'));sql.exec('COMMIT');
+  assert.deepEqual(sql.prepare('SELECT date,bank,client_hash,name,ms,hints,created_at FROM leaderboard_entries_v2').all(),before);
+  assert.equal(sql.prepare('SELECT round_ms FROM leaderboard_entries_v2').get().round_ms,null);
+  assert.equal(sql.prepare('SELECT round_ms FROM leaderboard_runs_v2').get().round_ms,null);
+  for(const t of triggers)assert.deepEqual(sql.prepare('SELECT name,sql FROM sqlite_master WHERE name=?').get(t.name),t);
+  sql.prepare('UPDATE leaderboard_entries_v2 SET round_ms=?').run('[100,100,100,100,600]');
+  // Existing v1 mirror performs an old-style update, which must clear stale detail.
+  sql.exec('UPDATE leaderboard_entries SET ms=900');
+  assert.equal(sql.prepare('SELECT round_ms FROM leaderboard_entries_v2').get().round_ms,null);
+  sql.prepare('UPDATE leaderboard_entries_v2 SET round_ms=?').run('[100,100,100,100,500]');
+  // The previous name-fix API's explicit-column UPSERT still works after migration.
+  sql.prepare(`INSERT INTO leaderboard_entries_v2 (date,bank,client_hash,name,ms,hints,created_at)
+    VALUES (?,?,?,?,?,?,?) ON CONFLICT(date,bank,client_hash) DO UPDATE SET
+    name=excluded.name,ms=excluded.ms,hints=excluded.hints,created_at=excluded.created_at WHERE excluded.ms<leaderboard_entries_v2.ms`).run(...row.slice(0,4),800,1,124);
+  const updated=sql.prepare('SELECT ms,round_ms FROM leaderboard_entries_v2').get();assert.equal(updated.ms,800);assert.equal(updated.round_ms,null);
+  for(const bad of ['no-json','null','{}','[1,2]','[1,2,3,4,null]','[1,2,3,4,-1]','[1,2,3,4,0.5]'])assert.throws(()=>sql.prepare('UPDATE leaderboard_entries_v2 SET round_ms=?').run(bad));
+});
+test('round migration rolls back both added columns on transaction failure',()=>{
+  const sql=new DatabaseSync(':memory:');
+  for(const file of ['0001_leaderboard.sql','0002_short_names.sql'])sql.exec(fs.readFileSync(path.join(root,'migrations',file),'utf8'));
+  sql.prepare('INSERT INTO leaderboard_entries_v2 VALUES (?,?,?,?,?,?,?)').run('2026-11-11',bank,'a'.repeat(64),'A',1000,0,123);
+  const before=sql.prepare('SELECT * FROM leaderboard_entries_v2').all();
+  sql.exec('BEGIN');
+  try{sql.exec(fs.readFileSync(path.join(root,'migrations/0003_round_times.sql'),'utf8'));sql.exec('SELECT * FROM intentional_missing_table');}catch{sql.exec('ROLLBACK');}
+  assert.deepEqual(sql.prepare('SELECT * FROM leaderboard_entries_v2').all(),before);
+  for(const table of ['entries','runs'])assert.ok(!sql.prepare(`PRAGMA table_info(leaderboard_${table}_v2)`).all().some(c=>c.name==='round_ms'));
+  assert.equal(sql.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='trigger' AND name LIKE '%clear_stale_rounds'").get().n,0);
 });

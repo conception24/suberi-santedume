@@ -4,8 +4,17 @@ const MAX_RUNS = 20;
 const DAY = 86400000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const RANKED = `SELECT ROW_NUMBER() OVER (ORDER BY ms, created_at, client_hash) AS rank,
-  name, ms, hints, client_hash FROM leaderboard_entries_v2 WHERE date = ? AND bank = ?`;
+  name, ms, hints, round_ms, client_hash FROM leaderboard_entries_v2 WHERE date = ? AND bank = ?`;
 
+function publicEntry(row) {
+  const {round_ms, ...entry} = row;
+  return {...entry, roundMs: round_ms == null ? null : JSON.parse(round_ms)};
+}
+function validRounds(roundMs, ms) {
+  return roundMs == null || (Array.isArray(roundMs) && roundMs.length === 5
+    && Array.from(roundMs).every(n => Number.isSafeInteger(n) && n >= 0 && n <= DAY)
+    && roundMs.reduce((sum, n) => sum + n, 0) === ms);
+}
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: {
     'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store',
@@ -27,7 +36,7 @@ export function validateSubmission(value, now = Date.now()) {
     && Number.isSafeInteger(hints) && hints >= 0 && hints <= 999
     && typeof clientId === 'string' && UUID.test(clientId)
     && typeof runId === 'string' && /^[A-Za-z0-9_-]{8,80}$/.test(runId)
-    && completed === 5;
+    && completed === 5 && validRounds(value.roundMs, ms);
 }
 async function readBody(request) {
   if (Number(request.headers.get('Content-Length')) > MAX_BODY) throw new Error('large');
@@ -70,33 +79,44 @@ export async function onRequest({request, env}) {
     if (request.method === 'GET') {
       const date = url.searchParams.get('date'); const bank = url.searchParams.get('bank');
       if (!validDate(date) || bank !== BANK) return error('日付または問題セットが正しくありません。', 400);
-      const result = await env.LEADERBOARD_DB.prepare(`SELECT rank, name, ms, hints FROM (${RANKED}) ORDER BY rank LIMIT 100`).bind(date, bank).all();
-      return json({entries: result.results, date, bank});
+      // One transactional read snapshot keeps entries and all-participant minima consistent.
+      const results = await env.LEADERBOARD_DB.batch([
+        env.LEADERBOARD_DB.prepare(`SELECT rank, name, ms, hints, round_ms FROM (${RANKED}) ORDER BY rank LIMIT 100`).bind(date, bank),
+        env.LEADERBOARD_DB.prepare(`SELECT
+          MIN(json_extract(round_ms, '$[0]')) AS r0, MIN(json_extract(round_ms, '$[1]')) AS r1,
+          MIN(json_extract(round_ms, '$[2]')) AS r2, MIN(json_extract(round_ms, '$[3]')) AS r3,
+          MIN(json_extract(round_ms, '$[4]')) AS r4
+          FROM leaderboard_entries_v2 WHERE date = ? AND bank = ? AND round_ms IS NOT NULL`).bind(date, bank)
+      ]);
+      const minima = results[1].results[0];
+      const roundBests = minima.r0 == null ? null : [minima.r0, minima.r1, minima.r2, minima.r3, minima.r4];
+      return json({entries: results[0].results.map(publicEntry), roundBests, date, bank});
     }
     let body;
     try { body = await readBody(request); }
     catch (e) { return error(e.message === 'large' ? '送信データが大きすぎます。' : '送信データを読み取れませんでした。', e.message === 'large' ? 413 : 400); }
     if (!validateSubmission(body)) return error('登録内容を確認してください。登録できるのは本日・前日（日本時間）の5問完了記録です。', 400);
     const {date, bank, name, ms, hints, runId} = body;
+    const roundMs = body.roundMs == null ? null : JSON.stringify(body.roundMs);
     const hash = await browserHash(body.clientId, date, bank);
     const db = env.LEADERBOARD_DB;
     // D1 batch is transactional: preserve the first payload for a run, then update only for a better time.
     const result = await db.batch([
-      db.prepare(`INSERT INTO leaderboard_runs_v2 (date, bank, client_hash, run_id, name, ms, hints, created_at)
-        SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE
+      db.prepare(`INSERT INTO leaderboard_runs_v2 (date, bank, client_hash, run_id, name, ms, hints, created_at, round_ms)
+        SELECT ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE
         (SELECT COUNT(*) FROM leaderboard_runs_v2 WHERE date = ? AND bank = ? AND client_hash = ?) < ?
-        ON CONFLICT(date, bank, client_hash, run_id) DO NOTHING`).bind(date, bank, hash, runId, name, ms, hints, Date.now(), date, bank, hash, MAX_RUNS),
-      db.prepare(`INSERT INTO leaderboard_entries_v2 (date, bank, client_hash, name, ms, hints, created_at)
-        SELECT date, bank, client_hash, name, ms, hints, created_at FROM leaderboard_runs_v2
+        ON CONFLICT(date, bank, client_hash, run_id) DO NOTHING`).bind(date, bank, hash, runId, name, ms, hints, Date.now(), roundMs, date, bank, hash, MAX_RUNS),
+      db.prepare(`INSERT INTO leaderboard_entries_v2 (date, bank, client_hash, name, ms, hints, created_at, round_ms)
+        SELECT date, bank, client_hash, name, ms, hints, created_at, round_ms FROM leaderboard_runs_v2
         WHERE date = ? AND bank = ? AND client_hash = ? AND run_id = ?
         ON CONFLICT(date, bank, client_hash) DO UPDATE SET
-        name = excluded.name, ms = excluded.ms, hints = excluded.hints, created_at = excluded.created_at
+        name = excluded.name, ms = excluded.ms, hints = excluded.hints, created_at = excluded.created_at, round_ms = excluded.round_ms
         WHERE excluded.ms < leaderboard_entries_v2.ms RETURNING name, ms, hints`).bind(date, bank, hash, runId),
       db.prepare('SELECT run_id FROM leaderboard_runs_v2 WHERE date = ? AND bank = ? AND client_hash = ? AND run_id = ?').bind(date, bank, hash, runId),
-      db.prepare(`SELECT rank, name, ms, hints FROM (${RANKED}) WHERE client_hash = ?`).bind(date, bank, hash)
+      db.prepare(`SELECT rank, name, ms, hints, round_ms FROM (${RANKED}) WHERE client_hash = ?`).bind(date, bank, hash)
     ]);
     if (!result[2].results.length) return error('本日の登録回数の上限に達しました。', 429);
-    return json({saved: true, improved: result[1].results.length > 0, entry: result[3].results[0], date, bank});
+    return json({saved: true, improved: result[1].results.length > 0, entry: publicEntry(result[3].results[0]), date, bank});
   } catch {
     // Do not log payloads, browser identifiers, or provider error details.
     return error('ランキングを利用できませんでした。しばらくしてからお試しください。', 503);
