@@ -4,7 +4,7 @@ const MAX_RUNS = 20;
 const DAY = 86400000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const RANKED = `SELECT ROW_NUMBER() OVER (ORDER BY ms, created_at, client_hash) AS rank,
-  name, ms, hints, client_hash FROM leaderboard_entries WHERE date = ? AND bank = ?`;
+  name, ms, hints, client_hash FROM leaderboard_entries_v2 WHERE date = ? AND bank = ?`;
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: {
@@ -22,7 +22,7 @@ export function validateSubmission(value, now = Date.now()) {
   if (!value || Array.isArray(value) || typeof value !== 'object') return false;
   const {date, bank, name, ms, hints, clientId, runId, completed} = value;
   return validDate(date) && (date === jstDate(now) || date === jstDate(now - DAY))
-    && bank === BANK && typeof name === 'string' && /^[A-Z]{3}$/.test(name)
+    && bank === BANK && typeof name === 'string' && /^[A-Z]{1,3}$/.test(name)
     && Number.isSafeInteger(ms) && ms >= 1 && ms <= DAY
     && Number.isSafeInteger(hints) && hints >= 0 && hints <= 999
     && typeof clientId === 'string' && UUID.test(clientId)
@@ -82,17 +82,17 @@ export async function onRequest({request, env}) {
     const db = env.LEADERBOARD_DB;
     // D1 batch is transactional: preserve the first payload for a run, then update only for a better time.
     const result = await db.batch([
-      db.prepare(`INSERT INTO leaderboard_runs (date, bank, client_hash, run_id, name, ms, hints, created_at)
+      db.prepare(`INSERT INTO leaderboard_runs_v2 (date, bank, client_hash, run_id, name, ms, hints, created_at)
         SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE
-        (SELECT COUNT(*) FROM leaderboard_runs WHERE date = ? AND bank = ? AND client_hash = ?) < ?
+        (SELECT COUNT(*) FROM leaderboard_runs_v2 WHERE date = ? AND bank = ? AND client_hash = ?) < ?
         ON CONFLICT(date, bank, client_hash, run_id) DO NOTHING`).bind(date, bank, hash, runId, name, ms, hints, Date.now(), date, bank, hash, MAX_RUNS),
-      db.prepare(`INSERT INTO leaderboard_entries (date, bank, client_hash, name, ms, hints, created_at)
-        SELECT date, bank, client_hash, name, ms, hints, created_at FROM leaderboard_runs
+      db.prepare(`INSERT INTO leaderboard_entries_v2 (date, bank, client_hash, name, ms, hints, created_at)
+        SELECT date, bank, client_hash, name, ms, hints, created_at FROM leaderboard_runs_v2
         WHERE date = ? AND bank = ? AND client_hash = ? AND run_id = ?
         ON CONFLICT(date, bank, client_hash) DO UPDATE SET
         name = excluded.name, ms = excluded.ms, hints = excluded.hints, created_at = excluded.created_at
-        WHERE excluded.ms < leaderboard_entries.ms RETURNING name, ms, hints`).bind(date, bank, hash, runId),
-      db.prepare('SELECT run_id FROM leaderboard_runs WHERE date = ? AND bank = ? AND client_hash = ? AND run_id = ?').bind(date, bank, hash, runId),
+        WHERE excluded.ms < leaderboard_entries_v2.ms RETURNING name, ms, hints`).bind(date, bank, hash, runId),
+      db.prepare('SELECT run_id FROM leaderboard_runs_v2 WHERE date = ? AND bank = ? AND client_hash = ? AND run_id = ?').bind(date, bank, hash, runId),
       db.prepare(`SELECT rank, name, ms, hints FROM (${RANKED}) WHERE client_hash = ?`).bind(date, bank, hash)
     ]);
     if (!result[2].results.length) return error('本日の登録回数の上限に達しました。', 429);

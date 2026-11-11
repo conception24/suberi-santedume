@@ -10,6 +10,7 @@ const bank = 'neutreeko-mixed65-20261104-v3';
 function database() {
   const sqlite = new DatabaseSync(':memory:');
   sqlite.exec(fs.readFileSync(path.join(root, 'migrations/0001_leaderboard.sql'), 'utf8'));
+  sqlite.exec(fs.readFileSync(path.join(root, 'migrations/0002_short_names.sql'), 'utf8'));
   const db = {
     prepare(sql) { return {bind(...args) {return {all: async () => ({results: sqlite.prepare(sql).all(...args)})};}}; },
     async batch(statements) {
@@ -46,12 +47,12 @@ test('empty, first, duplicate, slower, improved; no private ids', async () => {
   const publicResult = await call('GET');
   assert.equal(publicResult.headers.get('Cache-Control'),'no-store');
   assert.deepEqual(Object.keys(publicResult.data.entries[0]).sort(),['hints','ms','name','rank']);
-  assert.equal(db.sqlite.prepare('SELECT COUNT(*) AS n FROM leaderboard_entries').get().n,1);
+  assert.equal(db.sqlite.prepare('SELECT COUNT(*) AS n FROM leaderboard_entries_v2').get().n,1);
   assert.ok(!JSON.stringify(publicResult.data).includes(body.clientId));
 });
 test('ranking orders time, ties stable, only 100 entries', async () => {
   const {body,call,db} = await setup();
-  for(let i=0;i<105;i++) db.sqlite.prepare('INSERT INTO leaderboard_entries VALUES (?,?,?,?,?,?,?)').run(body.date,bank,String(i).padStart(64,'0'),'ABC',100+i,0,i);
+  for(let i=0;i<105;i++) db.sqlite.prepare('INSERT INTO leaderboard_entries_v2 VALUES (?,?,?,?,?,?,?)').run(body.date,bank,String(i).padStart(64,'0'),'ABC',100+i,0,i);
   const entries=(await call('GET')).data.entries;
   assert.equal(entries.length,100); assert.equal(entries[0].ms,100); assert.equal(entries[99].rank,100);
   const result=await call('POST',{...body,ms:100});
@@ -59,7 +60,7 @@ test('ranking orders time, ties stable, only 100 entries', async () => {
 });
 test('validation rejects malformed, forged origin, oversized and incomplete submissions',async()=>{
   const {body,call}=await setup();
-  for(const patch of [{name:'abc'},{name:'ABCD'},{name:'<A>'},{ms:0},{ms:1.5},{ms:86400001},{hints:-1},{hints:0.5},{hints:1000},{clientId:'fake'},{runId:'x'},{completed:4},{bank:'wrong'},{date:'2026-02-30'},{date:'2000-01-01'}])
+  for(const patch of [{name:''},{name:'abc'},{name:'ABCD'},{name:'<A>'},{ms:0},{ms:1.5},{ms:86400001},{hints:-1},{hints:0.5},{hints:1000},{clientId:'fake'},{runId:'x'},{completed:4},{bank:'wrong'},{date:'2026-02-30'},{date:'2000-01-01'}])
     assert.equal((await call('POST',{...body,...patch})).status,400,JSON.stringify(patch));
   assert.equal((await call('POST',body,{headers:{Origin:'https://other.example'}})).status,403);
   assert.equal((await call('POST',body,{headers:{'Sec-Fetch-Site':'cross-site'}})).status,403);
@@ -89,6 +90,49 @@ test('database absence/failure is a safe Japanese 503',async()=>{
 });
 test('SQLite constraints reject invalid public values',async()=>{
   const {body,db}=await setup();
-  assert.throws(()=>db.sqlite.prepare('INSERT INTO leaderboard_entries VALUES (?,?,?,?,?,?,?)').run(body.date,bank,'a'.repeat(64),'aBC',1,0,0));
-  assert.throws(()=>db.sqlite.prepare('INSERT INTO leaderboard_entries VALUES (?,?,?,?,?,?,?)').run(body.date,bank,'a'.repeat(64),'ABC',1,-1,0));
+  assert.throws(()=>db.sqlite.prepare('INSERT INTO leaderboard_entries_v2 VALUES (?,?,?,?,?,?,?)').run(body.date,bank,'a'.repeat(64),'aBC',1,0,0));
+  assert.throws(()=>db.sqlite.prepare('INSERT INTO leaderboard_entries_v2 VALUES (?,?,?,?,?,?,?)').run(body.date,bank,'a'.repeat(64),'ABC',1,-1,0));
+});
+
+test('one, two and three uppercase characters save; other characters rejected', async () => {
+  const {body,call}=await setup();
+  for(const name of ['A','AB','ABC']) {
+    const res=await call('POST',{...body,name,clientId:randomUUID(),runId:randomUUID()});
+    assert.equal(res.status,200);assert.equal(res.data.entry.name,name);
+  }
+  for(const name of ['', 'ABCD', 'a', 'aB', 'Ａ', '1', 'A B', 'A\n'])
+    assert.equal((await call('POST',{...body,name})).status,400,name);
+});
+test('additive migration preserves old data, mirrors rollout writes and is repeatable', async () => {
+  const sqlite=new DatabaseSync(':memory:');
+  const original=fs.readFileSync(path.join(root,'migrations/0001_leaderboard.sql'),'utf8');
+  const migration=fs.readFileSync(path.join(root,'migrations/0002_short_names.sql'),'utf8');
+  sqlite.exec(original);
+  const row=['2026-11-11',bank,'a'.repeat(64),'ABC',1000,2,123];
+  const run=[...row.slice(0,3),'original-run',...row.slice(3)];
+  sqlite.prepare('INSERT INTO leaderboard_entries VALUES (?,?,?,?,?,?,?)').run(...row);
+  sqlite.prepare('INSERT INTO leaderboard_runs VALUES (?,?,?,?,?,?,?,?)').run(...run);
+  sqlite.exec('BEGIN');sqlite.exec(migration);sqlite.exec('COMMIT');
+  for(const table of ['entries','runs']) assert.deepEqual(sqlite.prepare(`SELECT * FROM leaderboard_${table}_v2`).all(),sqlite.prepare(`SELECT * FROM leaderboard_${table}`).all());
+  sqlite.prepare('UPDATE leaderboard_entries SET ms=900, name=?').run('XYZ');
+  assert.equal(sqlite.prepare('SELECT ms FROM leaderboard_entries_v2').get().ms,900);
+  sqlite.prepare('INSERT INTO leaderboard_runs VALUES (?,?,?,?,?,?,?,?)').run(...run.slice(0,3),'late-old-run',...run.slice(4));
+  assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM leaderboard_runs_v2').get().n,2);
+  sqlite.prepare('UPDATE leaderboard_entries_v2 SET ms=800, name=?').run('A');
+  sqlite.exec(migration);
+  assert.equal(sqlite.prepare('SELECT name FROM leaderboard_entries_v2').get().name,'A');
+  assert.equal(sqlite.prepare('SELECT name FROM leaderboard_entries').get().name,'XYZ');
+  for(const name of ['', 'abcd', 'ABCD','1']) assert.throws(()=>sqlite.prepare('UPDATE leaderboard_entries_v2 SET name=?').run(name));
+  for(const name of ['A','AB','ABC']) sqlite.prepare('UPDATE leaderboard_runs_v2 SET name=?').run(name);
+});
+test('migration transaction rollback leaves original data intact',()=>{
+  const sqlite=new DatabaseSync(':memory:');
+  sqlite.exec(fs.readFileSync(path.join(root,'migrations/0001_leaderboard.sql'),'utf8'));
+  sqlite.prepare('INSERT INTO leaderboard_entries VALUES (?,?,?,?,?,?,?)').run('2026-11-11',bank,'a'.repeat(64),'ABC',1000,0,123);
+  const before=sqlite.prepare('SELECT * FROM leaderboard_entries').all();
+  sqlite.exec('BEGIN');
+  try {sqlite.exec(fs.readFileSync(path.join(root,'migrations/0002_short_names.sql'),'utf8'));sqlite.exec('SELECT * FROM intentional_missing_table');}
+  catch {sqlite.exec('ROLLBACK');}
+  assert.deepEqual(sqlite.prepare('SELECT * FROM leaderboard_entries').all(),before);
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE name LIKE '%_v2' OR type='trigger'").get().n,0);
 });

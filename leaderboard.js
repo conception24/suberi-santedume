@@ -1,7 +1,7 @@
 'use strict';
 // Optional shared leaderboard. Game state and local results remain independent.
 const RANK_NAME_KEY='suberi-ranking-name-v1',RANK_CLIENT_KEY='suberi-ranking-client-v1';
-let rankResult=null,rankDate='',rankBank='',rankRequest=0,rankSending=false,rankSubmittedRun='',rankClientMemory='';
+let rankResult=null,rankDate='',rankBank='',rankRequest=0,rankSending=false,rankSubmittedRun='',rankClientMemory='',rankNameComposing=false;
 function rankingSeconds(ms){return (Math.floor(ms/100)/10).toFixed(1)}
 function rankingName(value){return String(value||'').normalize('NFKC').toUpperCase().replace(/[^A-Z]/g,'').slice(0,3)}
 function rankingClientId(){
@@ -19,7 +19,7 @@ function syncLeaderboardResult(){
   $('finishHintSummary').textContent=hintUses?'ヒント'+hintUses+'回使用':'ヒントなし';
 }
 function updateRankSubmit(){
-  $('rankingSubmit').disabled=rankSending||!rankResult||rankSubmittedRun===rankResult.runId||!/^[A-Z]{3}$/.test($('rankingName').value||'');
+  $('rankingSubmit').disabled=rankSending||!rankResult||rankSubmittedRun===rankResult.runId||!/^[A-Z]{1,3}$/.test(rankingName($('rankingName').value));
   $('rankingSubmit').textContent=rankSending?'登録中…':rankResult&&rankSubmittedRun===rankResult.runId?'登録済み':'この記録を載せる';
 }
 async function rankingRequest(url,options={}){
@@ -56,7 +56,7 @@ async function loadRanking(){
 }
 function openRanking(fromResult=false){
   if(rankSending)return;
-  rankResult=fromResult?currentRankingResult():null;
+  rankNameComposing=false;rankResult=fromResult?currentRankingResult():null;
   rankDate=rankResult?.date||jstDate();rankBank=rankResult?.bank||bankVersionForDate(rankDate);
   $('rankingTitle').textContent='デイリーランキング';$('rankingDate').textContent=rankDate+'（日本時間）';
   $('rankingForm').hidden=!rankResult;$('rankingName').value=rankingName(read(RANK_NAME_KEY,''));
@@ -67,7 +67,7 @@ function openRanking(fromResult=false){
 async function submitRanking(event){
   event?.preventDefault();if(rankSending||!rankResult||rankSubmittedRun===rankResult.runId)return;
   const name=rankingName($('rankingName').value);$('rankingName').value=name;
-  if(!/^[A-Z]{3}$/.test(name)){$('rankingStatus').textContent='英大文字3文字で入力してください。';updateRankSubmit();return}
+  if(!/^[A-Z]{1,3}$/.test(name)){$('rankingStatus').textContent='英字1〜3文字で入力してください。小文字は大文字になります。';updateRankSubmit();return}
   let clientId;try{clientId=rankingClientId()}catch{$('rankingStatus').textContent='このブラウザーでは登録に必要な識別子を作れません。Chromeなどで開き直してください。';return}
   rankSending=true;updateRankSubmit();save(RANK_NAME_KEY,name);$('rankingStatus').textContent='';
   const result={...rankResult,name,clientId};
@@ -78,7 +78,14 @@ async function submitRanking(event){
   }catch(error){$('rankingStatus').textContent=(error.message||'通信に失敗しました。')+' この記録のまま再試行できます。'}
   finally{rankSending=false;updateRankSubmit()}
 }
-$('rankingName').oninput=event=>{if(event?.isComposing)return;$('rankingName').value=rankingName($('rankingName').value);updateRankSubmit()};
+// Mobile keyboards may emit only composing input events before compositionend.
+// Keep the button in sync during composition; do not rewrite the IME buffer until commit.
+function normalizeRankingInput(){const input=$('rankingName'),name=rankingName(input.value);if(input.value!==name)input.value=name;updateRankSubmit()}
+$('rankingName').oncompositionstart=()=>{rankNameComposing=true;updateRankSubmit()};
+$('rankingName').oncompositionend=()=>{rankNameComposing=false;normalizeRankingInput()};
+$('rankingName').oninput=event=>{if(rankNameComposing||event?.isComposing){updateRankSubmit();return}normalizeRankingInput()};
+$('rankingName').onchange=normalizeRankingInput;
+$('rankingName').onblur=()=>{rankNameComposing=false;normalizeRankingInput()};
 $('rankingForm').onsubmit=submitRanking;
 $('rankingButton').onclick=()=>openRanking();
 $('finishRankingButton').onclick=()=>openRanking(true);
